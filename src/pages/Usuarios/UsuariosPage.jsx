@@ -184,16 +184,37 @@ export default function UsuariosPage() {
                   </td>
                 </tr>
               ) : usuariosFiltrados.length > 0 ? (
-                usuariosFiltrados.map((u) => (
+                usuariosFiltrados.map((u) => {
+                  const nombre = typeof u.nombreCompleto === 'string'
+                    ? u.nombreCompleto
+                    : [u.persona?.nombres, u.persona?.apellidos].filter(Boolean).join(' ') || 'Usuario sin nombre';
+                  const iniciales = nombre
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((n) => n[0])
+                    .join('')
+                    .toUpperCase();
+                  const fotoUrl = u.persona?.fotoPath || u.fotoUrl || u.foto || null;
+
+                  return (
                   <tr key={u.id} className="hover:bg-slate-50/30 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
-                        {/* Avatar con iniciales */}
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                          {u.nombreCompleto?.charAt(0)}
-                        </div>
+                        {/* Avatar con foto o iniciales */}
+                        {fotoUrl ? (
+                          <img
+                            src={fotoUrl}
+                            alt={nombre}
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-sm"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                            {iniciales}
+                          </div>
+                        )}
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-700 leading-tight mb-0.5">{u.nombreCompleto}</span>
+                          <span className="text-sm font-bold text-slate-700 leading-tight mb-0.5">{nombre}</span>
                           <span className="text-[11px] font-semibold text-slate-400 tracking-wider">DNI {u.dni}</span>
                         </div>
                       </div>
@@ -262,7 +283,7 @@ export default function UsuariosPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                )})
               ) : (
                 <tr>
                   <td colSpan="3" className="p-20 text-center text-slate-400 text-sm font-medium">

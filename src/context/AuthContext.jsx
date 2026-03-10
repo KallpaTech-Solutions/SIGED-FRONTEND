@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
+import api from '../api/axiosConfig';
 
 const AuthContext = createContext();
 
@@ -92,10 +93,18 @@ export const AuthProvider = ({ children }) => {
         return user?.rol === roleName || user?.rol === "SuperAdmin";
     };
 
-    const logout = () => {
-        localStorage.clear(); 
-        setUser(null);
-        navigate('/login');
+    const logout = async () => {
+        try {
+            // Avisamos al backend para que invalide sesión / registre auditoría
+            await api.post('/Auth/logout');
+        } catch (e) {
+            // Si falla el logout del backend, igual limpiamos el cliente
+            console.warn('Fallo al cerrar sesión en el backend', e);
+        } finally {
+            localStorage.clear(); 
+            setUser(null);
+            navigate('/login');
+        }
     };
 
     return (
