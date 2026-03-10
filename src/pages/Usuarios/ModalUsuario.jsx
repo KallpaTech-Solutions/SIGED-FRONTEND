@@ -87,7 +87,8 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
     e.preventDefault();
     setLoading(true);
     
-    const payload = {
+    // Payload base compatible con el DTO del backend
+    const basePayload = {
       dni: String(formData.dni),
       nombres: formData.nombres,
       apellidos: formData.apellidos,
@@ -98,14 +99,20 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
       organizacionId: formData.organizacionId ? Number(formData.organizacionId) : null,
       codigoEstudiante: Number(formData.rolId) === 4 ? formData.codigoEstudiante : null,
       cargo: Number(formData.rolId) !== 4 ? (formData.cargo || "Personal Administrativo") : null,
-      oficina: Number(formData.rolId) !== 4 ? (formData.oficina || "Sede Central") : null
+      oficina: Number(formData.rolId) !== 4 ? (formData.oficina || "Sede Central") : null,
+      telefono: null,
+      dependenciaId: null,
     };
 
     try {
       if (editarUsuario) {
-        await api.put(`/Usuarios/${editarUsuario.id}`, payload);
+        const updatePayload = {
+          ...basePayload,
+          id: editarUsuario.id,
+        };
+        await api.put(`/Usuarios/${editarUsuario.id}`, updatePayload);
       } else {
-        await api.post('/Usuarios/registrar', payload);
+        await api.post('/Usuarios/registrar', basePayload);
       }
       toast(editarUsuario ? 'Usuario actualizado correctamente' : 'Usuario registrado correctamente', 'success');
       onRefresh();

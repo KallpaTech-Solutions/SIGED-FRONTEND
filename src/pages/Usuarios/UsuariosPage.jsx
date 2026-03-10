@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   UserPlus, Search, ArrowRight, UserCog, 
-  Edit, Key, Power
+  Edit, Key, Power, Trash2
 } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import { useNavigate } from 'react-router-dom';
@@ -79,6 +79,29 @@ export default function UsuariosPage() {
       toast('Contraseña reiniciada con éxito', 'success');
     } catch (error) {
       toast('Error al reiniciar contraseña', 'error');
+    }
+  };
+
+  const handleDeleteUser = async (u) => {
+    const nombre = typeof u.nombreCompleto === 'string' ? u.nombreCompleto : [u.persona?.nombres, u.persona?.apellidos].filter(Boolean).join(' ') || 'este usuario';
+    const ok = await confirm({
+      title: 'Eliminar usuario',
+      message: `¿Estás seguro de eliminar definitivamente a ${nombre}? Esta acción no se puede deshacer.`,
+      variant: 'danger',
+      confirmText: 'Sí, eliminar',
+    });
+    if (!ok) return;
+
+    try {
+      await api.delete(`/Usuarios/${u.id}`);
+      toast('Usuario eliminado correctamente', 'success');
+      fetchUsuarios();
+    } catch (error) {
+      const msg =
+        error.response?.data?.message ||
+        error.response?.data?.detail ||
+        'No se pudo eliminar el usuario.';
+      toast(msg, 'error');
     }
   };
 
@@ -215,6 +238,13 @@ export default function UsuariosPage() {
                               title="Resetear Clave"
                             >
                               <Key size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Eliminar Usuario"
+                            >
+                              <Trash2 size={18} />
                             </button>
                             <button 
                               onClick={() => handleToggleEstado(u)}
