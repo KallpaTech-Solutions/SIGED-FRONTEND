@@ -118,12 +118,52 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
       onRefresh();
       onClose();
     } catch (error) {
-      const backendMessage =
-        error.response?.data?.message ||
-        error.response?.data?.detail ||
+      const response = error.response;
+      const data = response?.data;
+
+      let backendMessage =
+        data?.message ||
+        data?.detail ||
+        data?.title ||
         "Error al guardar cambios.";
+
+      // Si vienen errores de validación de ASP.NET (ModelState), los concatenamos
+      if (data?.errors && typeof data.errors === 'object') {
+        const detalles = Object.values(data.errors)
+          .flat()
+          .join(' ');
+        if (detalles) {
+          backendMessage = detalles;
+        }
+      }
+
+      // Si el backend manda un string plano, lo usamos
+      if (!data?.errors && typeof data === 'string') {
+        backendMessage = data;
+      }
+
+      // Si hay respuesta pero sin body, usamos status y statusText
+      if (!data && response) {
+        backendMessage = response.statusText || `Error HTTP ${response.status}`;
+      }
+
+      // Si NO hay respuesta (error de red / CORS / timeout)
+      if (!response) {
+        backendMessage = error.message || 'No se pudo conectar con el servidor.';
+      }
+
+      // Último recurso: mostrar el JSON completo para entender el fallo de transacción
+      if (backendMessage === "Error al guardar cambios." && data && typeof data === 'object') {
+        backendMessage = JSON.stringify(data);
+      }
+
+      // Prefijo con el código HTTP si existe
+      if (response?.status) {
+        backendMessage = `[${response.status}] ${backendMessage}`;
+      }
+
       toast(backendMessage, "error");
-      console.error("Error al registrar/actualizar usuario:", error.response?.data || error);
+      console.error("Error al registrar/actualizar usuario:", data || error);
     } finally { setLoading(false); }
   };
 

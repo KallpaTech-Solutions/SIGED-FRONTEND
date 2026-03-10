@@ -81,6 +81,19 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
+    // Cerrar sesión también en otras pestañas cuando desaparece el token
+    useEffect(() => {
+        const syncLogout = (e) => {
+            if (e.key === 'token' && !e.newValue) {
+                setUser(null);
+                window.location.href = '/login';
+            }
+        };
+
+        window.addEventListener('storage', syncLogout);
+        return () => window.removeEventListener('storage', syncLogout);
+    }, []);
+
     // --- EL CEREBRO DE LA SEGURIDAD ---
     const can = (permissionName) => {
         // SuperAdmin lo puede todo por defecto
