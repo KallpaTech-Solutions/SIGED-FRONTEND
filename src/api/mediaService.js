@@ -11,17 +11,15 @@ export async function uploadMediaFiles(files, onProgress) {
   if (fileList.length === 0) return [];
 
   const formData = new FormData();
-  
-  // Límite de 50MB coincidiendo con tu Supabase
   const MAX_SIZE = 50 * 1024 * 1024; 
 
   for (const file of fileList) {
     if (file.size > MAX_SIZE) {
-      alert(`El archivo ${file.name} es demasiado grande. El máximo permitido es 50MB.`);
+      alert(`El archivo ${file.name} es demasiado grande (Máx 50MB).`);
       return [];
     }
-    // IMPORTANTE: El backend espera la clave "files"
-    formData.append("files", file);
+    // El nombre "files" debe ser igual al parámetro del controlador
+    formData.append("files", file); 
   }
 
   try {
@@ -29,8 +27,9 @@ export async function uploadMediaFiles(files, onProgress) {
 
     const { data } = await api.post("/Media/upload-noticia", formData, {
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        // IMPORTANTE: No definas 'Content-Type', Axios lo hace por ti con el boundary
+        'Authorization': `Bearer ${token}`,
+        // 🔥 TRUCO: Eliminamos explícitamente el Content-Type por si axiosConfig lo tiene por defecto
+        'Content-Type': undefined 
       },
       onUploadProgress: (event) => {
         if (!onProgress || !event.total) return;
@@ -39,9 +38,8 @@ export async function uploadMediaFiles(files, onProgress) {
       },
     });
 
-    // Tu controlador devuelve { urls: ["url1", "url2"] }
     return data.urls || [];
-  } catch (error) {
+  }catch (error) {
     console.error("Error en uploadMediaFiles:", error.response?.data || error.message);
     
     const mensaje = error.response?.data?.message || "Error al conectar con el servidor de medios.";
