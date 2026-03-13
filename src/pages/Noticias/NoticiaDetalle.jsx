@@ -12,6 +12,7 @@ export default function NoticiaDetalle() {
   const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {
+    if (!slug) return;
     let montado = true;
     setCargando(true);
     setError("");

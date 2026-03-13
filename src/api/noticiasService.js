@@ -133,7 +133,7 @@ export async function fetchNoticiasAdmin() {
 }
 
 export async function fetchNoticiaById(id) {
-  const { data } = await api.get(`/News/id/${id}`);
+  const { data } = await api.get(`/News/${id}`);
   return mapFromApi(data);
 }
 
@@ -146,9 +146,8 @@ export async function createNoticia(model) {
 export async function updateNoticia(id, model) {
   const payload = mapToApi(model);
   const { data } = await api.put(`/News/${id}`, payload);
-  // El backend devuelve { message, slug }, así que reconstruimos el modelo
-  const slug = data?.slug || data?.Slug || model.slug || model.id;
-  return { ...model, slug };
+  // El backend devuelve la noticia actualizada (NewsResponseDto)
+  return data ? mapFromApi(data) : { ...model };
 }
 
 export async function deleteNoticia(id) {
