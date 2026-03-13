@@ -21,11 +21,14 @@ export default function NoticiasAdminForm() {
     mediaUrls: [],
     etiquetas: "",
     destacada: false,
+    permitirComentarios: true,
+    permitirReacciones: true,
     estado: "borrador",
   });
 
   const [errores, setErrores] = useState({});
   const [cargando, setCargando] = useState(isEditing);
+  const [enviando, setEnviando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [progresoSubida, setProgresoSubida] = useState(0);
 
@@ -46,7 +49,9 @@ export default function NoticiasAdminForm() {
           imagenPrincipal: noticiaExistente.imagenPrincipal || "",
           mediaUrls: noticiaExistente.mediaUrls || [],
           etiquetas: (noticiaExistente.etiquetas || []).join(", "),
-          destacada: noticiaExistente.destacada || false,
+          destacada: Boolean(noticiaExistente.destacada),
+          permitirComentarios: noticiaExistente.permitirComentarios !== false,
+          permitirReacciones: noticiaExistente.permitirReacciones !== false,
           estado: noticiaExistente.estado || "borrador",
         });
       })
@@ -149,6 +154,7 @@ export default function NoticiasAdminForm() {
     if (!validar()) return;
 
     const payload = { ...formData, estado };
+    setEnviando(true);
 
     try {
       if (isEditing && id) {
@@ -160,6 +166,7 @@ export default function NoticiasAdminForm() {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Error guardando noticia:", error);
+      setEnviando(false);
     }
   };
 
@@ -299,7 +306,7 @@ export default function NoticiasAdminForm() {
               formData.mediaUrls.map((url, index) => (
                 <div
                   key={url + index}
-                  className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer group"
+                  className="relative w-full aspect-4/3 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer group"
                   onClick={() => handleSetPrincipal(url)}
                 >
                   <img
@@ -329,7 +336,7 @@ export default function NoticiasAdminForm() {
             {/* Tarjeta "+" para añadir más (siempre visible) */}
             <label
               htmlFor="imagen-noticia"
-              className="flex items-center justify-center w-full aspect-[4/3] rounded-lg border-2 border-dashed border-slate-300 text-slate-400 text-2xl font-bold cursor-pointer hover:border-primary hover:text-primary bg-slate-50"
+              className="flex items-center justify-center w-full aspect-4/3 rounded-lg border-2 border-dashed border-slate-300 text-slate-400 text-2xl font-bold cursor-pointer hover:border-primary hover:text-primary bg-slate-50"
             >
               +
             </label>
@@ -349,39 +356,77 @@ export default function NoticiasAdminForm() {
           />
         </div>
 
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-slate-800">
-            <input
-              type="checkbox"
-              checked={formData.destacada}
-              onChange={(e) => handleChange("destacada", e.target.checked)}
-              className="w-4 h-4"
-            />
-            Marcar como destacada
-          </label>
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-semibold text-slate-800">
+            Configuración de interacción
+          </p>
+          <div className="flex flex-wrap items-center gap-6">
+            <label className="flex items-center gap-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={formData.destacada}
+                onChange={(e) => handleChange("destacada", e.target.checked)}
+                className="w-4 h-4"
+              />
+              Es destacada (aparece primero en el feed)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={formData.permitirComentarios}
+                onChange={(e) =>
+                  handleChange("permitirComentarios", e.target.checked)
+                }
+                className="w-4 h-4"
+              />
+              Permitir comentarios
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={formData.permitirReacciones}
+                onChange={(e) =>
+                  handleChange("permitirReacciones", e.target.checked)
+                }
+                className="w-4 h-4"
+              />
+              Permitir reacciones (me gusta, etc.)
+            </label>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 pt-4 border-t border-slate-200">
           <button
             type="button"
             onClick={() => navigate("/PanelControl/noticias")}
-            className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            disabled={enviando}
+            className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
             type="button"
+            disabled={enviando}
             onClick={() => handleSubmit("borrador")}
-            className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            Guardar borrador
+            {enviando
+              ? "Guardando..."
+              : isEditing
+              ? "Actualizar como borrador"
+              : "Guardar borrador"}
           </button>
           <button
             type="button"
+            disabled={enviando}
             onClick={() => handleSubmit("publicada")}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50"
           >
-            Publicar
+            {enviando
+              ? "Guardando..."
+              : isEditing
+              ? "Actualizar y publicar"
+              : "Publicar"}
           </button>
         </div>
       </div>

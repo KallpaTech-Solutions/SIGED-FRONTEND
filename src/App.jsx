@@ -18,6 +18,7 @@ import EstudianteSummary from "./pages/Inicio/EstudianteSummary";
 import EncargadoSummary from "./pages/Inicio/EncargadoSummary";
 import OrganizacionDetail from "./pages/Organizaciones/OrganizacionDetail";
 import NoticiasPage from "./pages/Noticias/NoticiasPage";
+import NoticiaDetalle from "./pages/Noticias/NoticiaDetalle";
 import NoticiasAdminPage from "./pages/Noticias/NoticiasAdminPage";
 import NoticiasAdminForm from "./pages/Noticias/NoticiasAdminForm";
 
@@ -63,6 +64,7 @@ function App() {
                   element={<FirstAccessValidation />}
                 />
                 <Route path="/noticias" element={<NoticiasPage />} />
+                <Route path="/noticia/:slug" element={<NoticiaDetalle />} />
 
                 {/* --- 🟢 PANEL ÚNICO (Consolidado y Protegido) --- */}
                 <Route

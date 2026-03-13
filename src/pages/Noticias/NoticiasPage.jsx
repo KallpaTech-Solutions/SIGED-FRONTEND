@@ -55,9 +55,11 @@ export default function NoticiasPage() {
           tag.toLowerCase().includes(texto)
         );
 
-      return cumpleCategoria && cumpleBusqueda && noticia.estado === "publicada";
+      // El feed ya solo devuelve noticias publicadas,
+      // así que aquí no filtramos por estado.
+      return cumpleCategoria && cumpleBusqueda;
     });
-  }, [busqueda, categoriaActiva]);
+  }, [busqueda, categoriaActiva, noticias]);
 
   const noticiaDestacada =
     noticiasFiltradas.find((n) => n.destacada) || noticiasFiltradas[0];
@@ -146,36 +148,47 @@ export default function NoticiasPage() {
                 {noticiaDestacada && (
                   <Link
                     to={`/noticia/${noticiaDestacada.slug || noticiaDestacada.id}`}
-                    className="block bg-white rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-lg transition-shadow"
+                    className="block rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-lg transition-shadow bg-linear-to-r from-primary/5 via-secondary/5 to-primary/5"
                   >
-                    <div className="h-52 md:h-64 w-full overflow-hidden">
-                      <img
-                        src={noticiaDestacada.imagenPrincipal}
-                        alt={noticiaDestacada.titulo}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-5 md:p-6 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-xs text-muted-foreground">
-                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
-                          {getCategoryLabel(noticiaDestacada.categoria)}
-                        </span>
-                        <span>
-                          {new Date(
-                            noticiaDestacada.fechaPublicacion
-                          ).toLocaleDateString("es-PE", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </span>
+                    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4 md:gap-6 items-stretch p-4 md:p-6">
+                      {/* Imagen con fondo decorativo */}
+                      <div className="relative flex items-center justify-center rounded-xl bg-white/80 border border-border overflow-hidden h-40 md:h-48">
+                        <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(circle_at_top,_#22c55e,_transparent_60%),radial-gradient(circle_at_bottom,_#3b82f6,_transparent_55%)]" />
+                        <img
+                          src={noticiaDestacada.imagenPrincipal}
+                          alt={noticiaDestacada.titulo}
+                          className="relative z-10 max-w-full max-h-full object-contain"
+                        />
                       </div>
-                      <h2 className="text-lg md:text-2xl font-bold text-foreground leading-snug md:leading-tight">
-                        {noticiaDestacada.titulo}
-                      </h2>
-                      <p className="text-xs md:text-sm text-muted-foreground line-clamp-3">
-                        {noticiaDestacada.extracto}
-                      </p>
+
+                      {/* Texto y CTA */}
+                      <div className="flex flex-col justify-center space-y-3">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] md:text-xs text-muted-foreground">
+                          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
+                            {getCategoryLabel(noticiaDestacada.categoria)}
+                          </span>
+                          <span>
+                            {new Date(
+                              noticiaDestacada.fechaPublicacion
+                            ).toLocaleDateString("es-PE", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        <h2 className="text-lg md:text-2xl font-bold text-foreground leading-snug md:leading-tight">
+                          {noticiaDestacada.titulo}
+                        </h2>
+                        <p className="text-xs md:text-sm text-muted-foreground line-clamp-3">
+                          {noticiaDestacada.extracto}
+                        </p>
+                        <div>
+                          <span className="inline-flex items-center text-xs font-semibold text-primary">
+                            Leer noticia completa →
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </Link>
                 )}
@@ -269,7 +282,6 @@ export default function NoticiasPage() {
                   </h3>
                   <ul className="space-y-2 text-xs">
                     {noticias
-                      .filter((n) => n.estado === "publicada")
                       .slice()
                       .sort((a, b) => b.vistas - a.vistas)
                       .slice(0, 5)

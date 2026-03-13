@@ -1,8 +1,19 @@
 import api from "./axiosConfig";
 
-function mapStatusFromApi(statusNumber) {
-  if (statusNumber === 1) return "publicada";
-  if (statusNumber === 2) return "archivada";
+function mapStatusFromApi(rawStatus) {
+  if (rawStatus === null || rawStatus === undefined) return "borrador";
+
+  // Caso 1: backend envía número (0,1,2)
+  if (typeof rawStatus === "number") {
+    if (rawStatus === 1) return "publicada";
+    if (rawStatus === 2) return "archivada";
+    return "borrador";
+  }
+
+  // Caso 2: backend envía string del enum (Draft/Published/Archived)
+  const value = String(rawStatus).toLowerCase();
+  if (value.includes("publish")) return "publicada";
+  if (value.includes("archiv")) return "archivada";
   return "borrador";
 }
 
@@ -109,6 +120,11 @@ export async function fetchNoticiasFeed() {
   return Array.isArray(data) ? data.map(mapFromApi) : [];
 }
 
+export async function fetchNoticiaBySlug(slug) {
+  const { data } = await api.get(`/News/${slug}`);
+  return mapFromApi(data);
+}
+
 // --- ADMIN ------------------------------------------------------------------
 
 export async function fetchNoticiasAdmin() {
@@ -117,10 +133,8 @@ export async function fetchNoticiasAdmin() {
 }
 
 export async function fetchNoticiaById(id) {
-  const { data } = await api.get("/News/admin");
-  if (!Array.isArray(data)) return null;
-  const item = data.find((n) => n.id === id || n.Id === id);
-  return mapFromApi(item);
+  const { data } = await api.get(`/News/id/${id}`);
+  return mapFromApi(data);
 }
 
 export async function createNoticia(model) {

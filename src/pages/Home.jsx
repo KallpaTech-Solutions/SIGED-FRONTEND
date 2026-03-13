@@ -368,9 +368,12 @@ export default function Home() {
           </div>
 
           <div className="text-center mt-8">
-            <button className="text-primary hover:text-primary-700 font-bold text-lg flex items-center gap-2 mx-auto w-fit">
+            <Link
+              to="/noticias"
+              className="text-primary hover:text-primary-700 font-bold text-lg flex items-center gap-2 mx-auto w-fit"
+            >
               Ver todas las noticias →
-            </button>
+            </Link>
           </div>
         </div>
       </section>
