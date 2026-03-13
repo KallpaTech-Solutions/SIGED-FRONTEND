@@ -1,14 +1,15 @@
 import React from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { 
-  Trophy, 
-  Users, 
-  Settings, 
-  LayoutDashboard, 
-  School, 
+import {
+  Trophy,
+  Users,
+  Settings,
+  LayoutDashboard,
+  School,
   Activity,
   ChevronRight,
-  Loader2
+  Loader2,
+  Newspaper,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -31,16 +32,22 @@ export default function Dashboard() {
 
   // 2. Definición de Menú (Asegúrate de que 'can' esté funcionando con los permisos de la DB)
   const menuItems = [
-    { title: 'Inicio', path: '/PanelControl', icon: LayoutDashboard, visible: true },
-    { title: 'Usuarios UNAS', path: '/PanelControl/usuarios', icon: Users, visible: can('security.user.view') },
-    { 
-      title: 'Facultades', 
-      path: '/PanelControl/organizaciones', 
-      icon: School, 
-      visible: can('core.org.view') || user?.rol?.toUpperCase() === 'SUPERADMIN' 
+    { title: "Inicio", path: "/PanelControl", icon: LayoutDashboard, visible: true },
+    { title: "Usuarios UNAS", path: "/PanelControl/usuarios", icon: Users, visible: can("security.user.view") },
+    {
+      title: "Facultades",
+      path: "/PanelControl/organizaciones",
+      icon: School,
+      visible: can("core.org.view") || user?.rol?.toUpperCase() === "SUPERADMIN",
     },
-    { title: 'Torneos Activos', path: '/PanelControl/torneos', icon: Trophy, visible: can('comp.tourn.view') },
-    { title: 'Configuración', path: '/PanelControl/configuracion', icon: Settings, visible: can('security.role.manage') },
+    {
+      title: "Noticias",
+      path: "/PanelControl/noticias",
+      icon: Newspaper,
+      visible: can("news.view"),
+    },
+    { title: "Torneos Activos", path: "/PanelControl/torneos", icon: Trophy, visible: can("comp.tourn.view") },
+    { title: "Configuración", path: "/PanelControl/configuracion", icon: Settings, visible: can("security.role.manage") },
   ];
 
   const menuFiltrado = menuItems.filter(item => item.visible);

@@ -3,21 +3,23 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ConfirmProvider } from "./context/ConfirmContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import Navbar from "./components/layout/Navbar"; 
+import Navbar from "./components/layout/Navbar";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import UsuariosPage from "./pages/Usuarios/UsuariosPage";
-import FirstAccessValidation from './pages/Seguridad/FirstAccessValidation';
-import UsuarioDetalle from './pages/Usuarios/UsuarioDetalle';
-import SuperAdminSummary from './pages/Inicio/SuperAdminSummary'; 
+import FirstAccessValidation from "./pages/Seguridad/FirstAccessValidation";
+import UsuarioDetalle from "./pages/Usuarios/UsuarioDetalle";
+import SuperAdminSummary from "./pages/Inicio/SuperAdminSummary";
 import ConfiguracionPage from "./pages/Seguridad/ConfiguracionPage";
-import TorneosPage from './pages/Torneos/TorneosPage';
-import OrganizacionesPage from './pages/Organizaciones/OrganizacionesPage';
-import EstudianteSummary from './pages/Inicio/EstudianteSummary';
-import EncargadoSummary from './pages/Inicio/EncargadoSummary';
-// 👈 Importamos el nuevo componente de detalles
-import OrganizacionDetail from './pages/Organizaciones/OrganizacionDetail'; 
+import TorneosPage from "./pages/Torneos/TorneosPage";
+import OrganizacionesPage from "./pages/Organizaciones/OrganizacionesPage";
+import EstudianteSummary from "./pages/Inicio/EstudianteSummary";
+import EncargadoSummary from "./pages/Inicio/EncargadoSummary";
+import OrganizacionDetail from "./pages/Organizaciones/OrganizacionDetail";
+import NoticiasPage from "./pages/Noticias/NoticiasPage";
+import NoticiasAdminPage from "./pages/Noticias/NoticiasAdminPage";
+import NoticiasAdminForm from "./pages/Noticias/NoticiasAdminForm";
 
 const DashboardHome = () => {
   const { user } = useAuth();
@@ -50,41 +52,62 @@ function App() {
       <AuthProvider>
         <ConfirmProvider>
           <ToastProvider>
-        <Navbar /> 
-        <main className="min-h-screen">
-          <Routes>
-            {/* Rutas Públicas */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/Seguridad/update-password" element={<FirstAccessValidation />} />
-            
-            {/* --- 🟢 PANEL ÚNICO (Consolidado y Protegido) --- */}
-            <Route path="/PanelControl" element={<ProtectedRoute><Dashboard /></ProtectedRoute>}>
-              <Route index element={<DashboardHome />} /> 
-              
-              {/* Gestión de Usuarios */}
-              <Route path="usuarios" element={<UsuariosPage />} />
-              <Route path="usuarios/:id" element={<UsuarioDetalle />} />
-              
-              {/* Gestión de Organizaciones (Facultades) */}
-              <Route path="organizaciones" element={<OrganizacionesPage />} />
-              <Route path="organizaciones/:id" element={<OrganizacionDetail />} /> 
-              
-              {/* Otros Módulos */}
-              <Route path="torneos" element={<TorneosPage />} />
-              <Route path="configuracion" element={<ConfiguracionPage />} />
-            </Route>
+            <Navbar />
+            <main className="min-h-screen">
+              <Routes>
+                {/* Rutas Públicas */}
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/Seguridad/update-password"
+                  element={<FirstAccessValidation />}
+                />
+                <Route path="/noticias" element={<NoticiasPage />} />
 
-            {/* Redirecciones y Errores */}
-            <Route path="/dashboard" element={<Navigate to="/PanelControl" replace />} />
-            
-            {/* 💡 Si en el futuro quieres que los estudiantes vean la info sin loguearse, 
-                puedes habilitar esta ruta pública también: */}
-            {/* <Route path="/portal/organizaciones/:id" element={<OrganizacionDetail />} /> */}
+                {/* --- 🟢 PANEL ÚNICO (Consolidado y Protegido) --- */}
+                <Route
+                  path="/PanelControl"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<DashboardHome />} />
 
-            <Route path="*" element={<Home />} />
-          </Routes>
-        </main>
+                  {/* Gestión de Usuarios */}
+                  <Route path="usuarios" element={<UsuariosPage />} />
+                  <Route path="usuarios/:id" element={<UsuarioDetalle />} />
+
+                  {/* Gestión de Organizaciones (Facultades) */}
+                  <Route
+                    path="organizaciones"
+                    element={<OrganizacionesPage />}
+                  />
+                  <Route
+                    path="organizaciones/:id"
+                    element={<OrganizacionDetail />}
+                  />
+
+                  {/* Gestión de Noticias */}
+                  <Route path="noticias" element={<NoticiasAdminPage />} />
+                  <Route path="noticias/crear" element={<NoticiasAdminForm />} />
+                  <Route path="noticias/:id" element={<NoticiasAdminForm />} />
+
+                  {/* Otros Módulos */}
+                  <Route path="torneos" element={<TorneosPage />} />
+                  <Route path="configuracion" element={<ConfiguracionPage />} />
+                </Route>
+
+                {/* Redirecciones y Errores */}
+                <Route
+                  path="/dashboard"
+                  element={<Navigate to="/PanelControl" replace />}
+                />
+
+                <Route path="*" element={<Home />} />
+              </Routes>
+            </main>
           </ToastProvider>
         </ConfirmProvider>
       </AuthProvider>

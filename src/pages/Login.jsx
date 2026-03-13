@@ -3,6 +3,7 @@ import { Eye, EyeOff, LogIn, TreePine } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosConfig";
 import { useAuth } from "../context/AuthContext"; // 👈 IMPORTAMOS EL CONTEXTO
+import { useToast } from "../context/ToastContext";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -11,7 +12,9 @@ export default function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  
+  const { toast } = useToast();
+  const isPasswordValid = password.length >= 8;
+
   // 👇 EXTRAEMOS LA FUNCIÓN DE LOGIN DEL CONTEXTO
   const { login, user } = useAuth(); 
 
@@ -96,14 +99,24 @@ export default function Login() {
                 </label>
                 <div className="relative">
                   <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-50"
-                    required
-                  />
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  // 🚫 Bloquea el "Pegar" (Ctrl+V o menú contextual)
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    toast(
+                      "Por seguridad, no se permite pegar la contraseña. Escríbela manualmente.",
+                      "warning"
+                    );
+                  }}
+                  // 🚫 Bloquea el clic derecho para que no puedan usar el menú "Pegar" del navegador
+                  onContextMenu={(e) => e.preventDefault()}
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-50"
+                  required
+                />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -112,11 +125,16 @@ export default function Login() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  La contraseña debe tener al menos{" "}
+                  <span className="font-semibold text-foreground">8 caracteres</span>.
+                </p>
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !isPasswordValid}
                 className="w-full py-3 bg-linear-to-r from-primary to-secondary text-primary-foreground rounded-lg font-bold hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
