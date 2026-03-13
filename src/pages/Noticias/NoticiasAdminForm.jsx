@@ -121,6 +121,30 @@ export default function NoticiasAdminForm() {
     }
   };
 
+  const handleSetPrincipal = (url) => {
+    setFormData((prev) => {
+      const restantes = (prev.mediaUrls || []).filter((u) => u !== url);
+      return {
+        ...prev,
+        imagenPrincipal: url,
+        mediaUrls: [url, ...restantes],
+      };
+    });
+  };
+
+  const handleRemoveMedia = (url) => {
+    setFormData((prev) => {
+      const restantes = (prev.mediaUrls || []).filter((u) => u !== url);
+      const nuevaPrincipal =
+        prev.imagenPrincipal === url ? restantes[0] || "" : prev.imagenPrincipal;
+      return {
+        ...prev,
+        mediaUrls: restantes,
+        imagenPrincipal: nuevaPrincipal,
+      };
+    });
+  };
+
   const handleSubmit = async (estado) => {
     if (!validar()) return;
 
@@ -238,8 +262,10 @@ export default function NoticiasAdminForm() {
 
         <div className="space-y-2">
           <label className="text-sm font-semibold text-slate-800">
-            Imagen principal *
+            Imágenes de la noticia *
           </label>
+
+          {/* Input real (oculto), se dispara desde la tarjeta "+" */}
           <input
             id="imagen-noticia"
             type="file"
@@ -248,14 +274,9 @@ export default function NoticiasAdminForm() {
             onChange={handleFileChange}
             className="hidden"
           />
-          <label
-            htmlFor="imagen-noticia"
-            className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
-          >
-            {subiendo ? "Subiendo..." : "Seleccionar desde el equipo"}
-          </label>
+
           {subiendo && (
-            <div className="mt-2 w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div className="mt-1 w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div
                 className="h-2 rounded-full bg-primary shadow-[0_0_10px_rgba(59,130,246,0.7)] transition-all"
                 style={{ width: `${progresoSubida}%` }}
@@ -265,23 +286,54 @@ export default function NoticiasAdminForm() {
               </p>
             </div>
           )}
+
           {errores.imagenPrincipal && (
             <p className="text-[11px] text-red-600">
               {errores.imagenPrincipal}
             </p>
           )}
-          {formData.imagenPrincipal && (
-            <div className="mt-3">
-              <p className="text-[11px] text-slate-500 mb-1">
-                Vista previa de la imagen principal
-              </p>
-              <img
-                src={formData.imagenPrincipal}
-                alt="Imagen principal"
-                className="w-full h-48 rounded-lg object-cover border border-slate-200"
-              />
-            </div>
-          )}
+
+          <div className="mt-2 grid grid-cols-3 gap-3 max-h-44 overflow-y-auto pr-1">
+            {/* Miniaturas existentes */}
+            {formData.mediaUrls &&
+              formData.mediaUrls.map((url, index) => (
+                <div
+                  key={url + index}
+                  className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer group"
+                  onClick={() => handleSetPrincipal(url)}
+                >
+                  <img
+                    src={url}
+                    alt={`Media ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {formData.imagenPrincipal === url && (
+                    <span className="absolute bottom-1 left-1 px-2 py-0.5 rounded-full bg-primary text-[10px] font-semibold text-primary-foreground shadow">
+                      Principal
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveMedia(url);
+                    }}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-[11px] font-bold text-slate-600 flex items-center justify-center shadow-sm hover:bg-red-500 hover:text-white"
+                    aria-label="Quitar imagen"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+            {/* Tarjeta "+" para añadir más (siempre visible) */}
+            <label
+              htmlFor="imagen-noticia"
+              className="flex items-center justify-center w-full aspect-[4/3] rounded-lg border-2 border-dashed border-slate-300 text-slate-400 text-2xl font-bold cursor-pointer hover:border-primary hover:text-primary bg-slate-50"
+            >
+              +
+            </label>
+          </div>
         </div>
 
         <div className="space-y-1">
