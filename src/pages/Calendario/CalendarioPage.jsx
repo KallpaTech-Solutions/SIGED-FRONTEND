@@ -11,10 +11,10 @@ import {
 export default function CalendarioPage() {
   return (
     <div className="w-full min-h-screen bg-slate-50 font-inter">
-      {/* Header ejecutivo - Lúcete tú -->
-      <section className="border-b border-slate-200 bg-slate-50">
-        <div className="container mx-auto px-4 pt-8 pb-10 max-w-5xl">
-          <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-sky-900 to-emerald-900 border border-slate-800/60 shadow-[0_24px_60px_rgba(15,23,42,0.45)] px-6 py-8 md:px-10 md:py-10 text-white overflow-hidden relative">
+      {/* Header ejecutivo - Calendario competitivo */}
+      <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900 border border-slate-800/60 shadow-[0_24px_60px_rgba(15,23,42,0.45)] px-6 py-8 md:px-10 md:py-10 text-white overflow-hidden relative">
             <div className="absolute top-4 right-4 opacity-20">
               <Sparkles className="w-16 h-16 text-amber-300" />
             </div>
@@ -26,12 +26,10 @@ export default function CalendarioPage() {
                 <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
                   Calendario competitivo
                 </h1>
-                <p className="text-lg font-semibold text-emerald-200/95 mt-2">
-                  Lúcete tú — Estilos profesionales y ejecutivos
-                </p>
                 <p className="text-sm text-slate-200/90 mt-3 max-w-2xl">
                   Próximamente: cronograma oficial de encuentros, fases eliminatorias
                   por disciplina y toda la agenda para que planifiques tu participación.
+                  Una vista única para seguir día a día las competencias deportivas de la UNAS.
                 </p>
               </div>
               <div className="shrink-0">

@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getCategoryEmoji, getCategoryLabel } from "./mockNews";
+import {
+  getCategoryEmoji,
+  getCategoryId,
+  getCategoryLabel,
+} from "./newsCategoryUtils";
 import { fetchNoticiasFeed } from "../../api/noticiasService";
 
 const categories = [
   { value: "todas", label: "Todas" },
-  { value: "resultados", label: "Resultados" },
-  { value: "jugadores", label: "Jugadores" },
-  { value: "equipos", label: "Equipos" },
-  { value: "convocatorias", label: "Convocatorias" },
-  { value: "institucional", label: "Institucional" },
+  { value: 0, label: "Institucional" },
+  { value: 1, label: "Academia" },
+  { value: 2, label: "Deportes" },
+  { value: 3, label: "Investigación" },
+  { value: 4, label: "Cultura" },
+  { value: 5, label: "Convocatorias" },
+  { value: 6, label: "Bienestar" },
 ];
 
 const NOTICIAS_POR_PAGINA = 10;
@@ -50,12 +56,13 @@ export default function NoticiasPage() {
   const noticiasFiltradas = useMemo(() => {
     return noticias.filter((noticia) => {
       const cumpleCategoria =
-        categoriaActiva === "todas" || noticia.categoria === categoriaActiva;
+        categoriaActiva === "todas" ||
+        getCategoryId(noticia.categoria) === categoriaActiva;
       const texto = (busqueda || "").toLowerCase();
       const cumpleBusqueda =
         !texto ||
-        noticia.titulo.toLowerCase().includes(texto) ||
-        noticia.extracto.toLowerCase().includes(texto) ||
+        String(noticia.titulo || "").toLowerCase().includes(texto) ||
+        String(noticia.extracto || "").toLowerCase().includes(texto) ||
         (noticia.etiquetas || []).some((tag) =>
           tag.toLowerCase().includes(texto)
         );
@@ -210,7 +217,7 @@ export default function NoticiasPage() {
   return (
     <div className="w-full">
       <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 max-w-5xl">
           {/* Tarjeta flotante tipo carrusel (mensaje / noticia destacada) */}
           <div className="max-w-5xl mx-auto">
             <div className="relative rounded-[28px] bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-800 shadow-[0_24px_70px_rgba(15,23,42,0.75)] border border-emerald-500/30 px-6 py-5 md:px-8 md:py-6 text-white overflow-hidden">

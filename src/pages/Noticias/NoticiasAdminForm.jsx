@@ -15,7 +15,7 @@ export default function NoticiasAdminForm() {
 
   const [formData, setFormData] = useState({
     titulo: "",
-    categoria: "resultados",
+    categoria: "2",
     extracto: "",
     contenido: "",
     imagenPrincipal: "",
@@ -44,7 +44,7 @@ export default function NoticiasAdminForm() {
         if (!montado || !noticiaExistente) return;
         setFormData({
           titulo: noticiaExistente.titulo || "",
-          categoria: noticiaExistente.categoria || "resultados",
+          categoria: noticiaExistente.categoria ?? "2",
           extracto: noticiaExistente.extracto || "",
           contenido: noticiaExistente.contenido || "",
           imagenPrincipal: noticiaExistente.imagenPrincipal || "",
@@ -223,11 +223,13 @@ export default function NoticiasAdminForm() {
             onChange={(e) => handleChange("categoria", e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value="resultados">🏆 Resultados</option>
-            <option value="jugadores">⭐ Jugadores</option>
-            <option value="equipos">👥 Equipos</option>
-            <option value="convocatorias">📢 Convocatorias</option>
-            <option value="institucional">🎯 Institucional</option>
+            <option value="0">🎯 Institucional</option>
+            <option value="1">⭐ Academia</option>
+            <option value="2">🏆 Deportes</option>
+            <option value="3">🔬 Investigación</option>
+            <option value="4">🎭 Cultura</option>
+            <option value="5">📢 Convocatorias</option>
+            <option value="6">❤️ Bienestar</option>
           </select>
         </div>
 

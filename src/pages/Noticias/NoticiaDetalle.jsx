@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, CalendarDays, Eye, Tag, ZoomIn, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchNoticiaBySlug } from "../../api/noticiasService";
+import { getCategoryEmoji, getCategoryLabel } from "./newsCategoryUtils";
 
 export default function NoticiaDetalle() {
   const { slug } = useParams();
@@ -125,7 +126,7 @@ export default function NoticiaDetalle() {
               </Link>
               <span className="opacity-60">/</span>
               <span className="text-emerald-100 font-semibold">
-                {noticia.categoria}
+                {getCategoryEmoji(noticia.categoria)} {getCategoryLabel(noticia.categoria)}
               </span>
             </div>
 
@@ -155,7 +156,7 @@ export default function NoticiaDetalle() {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent pointer-events-none" />
                     <div className="absolute bottom-3 left-3 flex items-center gap-2 text-[10px]">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 font-semibold uppercase tracking-[0.18em]">
-                        {noticia.categoria}
+                        {getCategoryEmoji(noticia.categoria)} {getCategoryLabel(noticia.categoria)}
                       </span>
                     </div>
                   </button>

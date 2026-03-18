@@ -5,7 +5,7 @@ import {
   getCategoryBadgeColor,
   getCategoryEmoji,
   getCategoryLabel,
-} from "./mockNews";
+} from "./newsCategoryUtils";
 import { fetchNoticiasAdmin, updateNoticia, deleteNoticia } from "../../api/noticiasService";
 
 export default function NoticiasAdminPage() {
@@ -39,8 +39,8 @@ export default function NoticiasAdminPage() {
     const texto = (busqueda || "").toLowerCase();
     const cumpleBusqueda =
       !texto ||
-      noticia.titulo.toLowerCase().includes(texto) ||
-      noticia.extracto.toLowerCase().includes(texto);
+      String(noticia.titulo || "").toLowerCase().includes(texto) ||
+      String(noticia.extracto || "").toLowerCase().includes(texto);
 
     const cumpleEstado =
       estadoFiltro === "todos" || noticia.estado === estadoFiltro;

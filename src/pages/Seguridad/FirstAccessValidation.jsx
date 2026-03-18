@@ -24,11 +24,20 @@ export default function FirstAccessValidation() {
     }
 
     if (!mantenerClaveActual) {
-      if (!formData.newPassword || formData.newPassword.length < 6) {
-        return setError('La nueva contraseña debe tener al menos 6 caracteres.');
+      const { newPassword, confirmPassword } = formData;
+      const hasMinLength = newPassword && newPassword.length >= 8;
+      const hasUpper = /[A-ZÁÉÍÓÚÑ]/.test(newPassword || "");
+      const hasLower = /[a-záéíóúñ]/.test(newPassword || "");
+      const hasNumber = /\d/.test(newPassword || "");
+
+      if (!hasMinLength || !hasUpper || !hasLower || !hasNumber) {
+        return setError(
+          "La nueva contraseña debe tener mínimo 8 caracteres y combinar mayúsculas, minúsculas y números."
+        );
       }
-      if (formData.newPassword !== formData.confirmPassword) {
-        return setError('Las nuevas contraseñas no coinciden.');
+
+      if (newPassword !== confirmPassword) {
+        return setError("Las nuevas contraseñas no coinciden.");
       }
     }
 
@@ -73,78 +82,104 @@ export default function FirstAccessValidation() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-montserrat">
-      <div className="bg-white max-w-md w-full rounded-3xl shadow-2xl p-8 border border-gray-100">
-        
-        {/* Tu diseño visual se mantiene intacto aquí... */}
-        <div className="bg-orange-50 w-16 h-16 rounded-full flex items-center justify-center mb-6 mx-auto shadow-inner">
-          <ShieldAlert className="text-orange-600" size={32} />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-6 font-montserrat">
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-6 md:gap-10 items-stretch">
+        {/* Lado izquierdo: mensaje institucional */}
+        <div className="hidden md:flex flex-col justify-center rounded-3xl border border-slate-200 bg-white px-8 py-10 shadow-[0_18px_60px_rgba(15,23,42,0.08)] text-slate-800">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700 mb-4">
+            <ShieldAlert size={14} />
+            Seguridad · Primer acceso
+          </div>
+          <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-slate-900">
+            Protege tu cuenta SIGED
+          </h1>
+          <p className="mt-3 text-sm text-slate-600 max-w-md">
+            Por seguridad, el primer ingreso requiere confirmar tu contraseña
+            genérica (DNI) y, si deseas, definir una clave personal más segura.
+          </p>
+          <ul className="mt-6 space-y-2 text-xs text-slate-500">
+            <li>• Usa mínimo 8 caracteres.</li>
+            <li>• Combina mayúsculas, minúsculas y números.</li>
+            <li>• Evita repetir tu DNI como contraseña definitiva.</li>
+            <li>• No compartas tus credenciales con terceros.</li>
+          </ul>
         </div>
-        <h2 className="text-2xl font-black text-center text-gray-800 uppercase tracking-tight">
-          Validación de Acceso
-        </h2>
-        <p className="text-gray-500 text-center text-sm mt-2 mb-8">
-          Por políticas del SIGED, debes confirmar tu acceso inicial. Puedes cambiar tu contraseña genérica o decidir mantenerla.
-        </p>
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-bold text-center mb-6 animate-pulse">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div className="relative">
-            <Lock className="absolute left-3 top-3.5 text-gray-400" size={20} />
-            <input 
-              type="password" 
-              placeholder="Contraseña Actual (Tu DNI)" 
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              value={formData.currentPassword}
-              onChange={e => setFormData({...formData, currentPassword: e.target.value})}
-            />
-          </div>
-
-          <div className="pt-4 border-t border-dashed border-gray-200">
-            <p className="text-[10px] font-bold text-gray-400 mb-3 uppercase tracking-widest">
-              Si deseas cambiarla (Opcional):
-            </p>
-            <div className="space-y-3">
-              <input 
-                type="password" 
-                placeholder="Nueva Contraseña" 
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary transition-all bg-gray-50 focus:bg-white"
-                value={formData.newPassword}
-                onChange={e => setFormData({...formData, newPassword: e.target.value})}
-              />
-              <input 
-                type="password" 
-                placeholder="Confirmar Nueva Contraseña" 
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-primary transition-all bg-gray-50 focus:bg-white"
-                value={formData.confirmPassword}
-                onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
-              />
+        {/* Lado derecho: tarjeta de formulario */}
+        <div className="bg-white rounded-3xl shadow-[0_18px_60px_rgba(15,23,42,0.10)] p-6 md:p-8 border border-slate-200 max-w-md mx-auto text-slate-900">
+          <div className="md:hidden flex justify-center mb-5">
+            <div className="bg-emerald-50 w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner border border-emerald-200">
+              <ShieldAlert className="text-emerald-600" size={28} />
             </div>
           </div>
 
-          <div className="pt-6 space-y-3 flex flex-col mt-2">
-            <button 
-              onClick={() => procesarAcceso(false)}
-              disabled={loading}
-              className="w-full bg-primary text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-green-700 hover:-translate-y-1 transition-all shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:hover:translate-y-0"
-            >
-              {loading ? "PROCESANDO..." : formData.newPassword ? "ACTUALIZAR Y ENTRAR" : "INGRESAR AL SISTEMA"}
-              <ArrowRight size={20} />
-            </button>
-            
-            <button 
-              onClick={() => procesarAcceso(true)}
-              disabled={loading || formData.newPassword.length > 0} 
-              className="w-full py-3 flex items-center justify-center gap-2 text-sm text-gray-500 font-bold hover:text-gray-800 transition-colors disabled:opacity-30"
-            >
-              <CheckCircle size={18} />
-              MANTENER MI DNI COMO CLAVE
-            </button>
+          <h2 className="text-xl md:text-2xl font-black text-center text-slate-900 uppercase tracking-tight">
+            Validación de acceso
+          </h2>
+          <p className="text-slate-500 text-center text-xs md:text-sm mt-2 mb-6 md:mb-8">
+            Confirma tu contraseña actual (DNI). Luego puedes mantenerla o
+            definir una nueva clave para continuar al panel.
+          </p>
+
+          {error && (
+            <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl text-xs md:text-sm font-bold text-center mb-5">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="relative">
+              <Lock className="absolute left-3 top-3.5 text-gray-400" size={20} />
+              <input 
+                type="password" 
+                placeholder="Contraseña actual (tu DNI)" 
+                className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400/60 transition-all text-sm placeholder:text-slate-400"
+                value={formData.currentPassword}
+                onChange={e => setFormData({...formData, currentPassword: e.target.value})}
+              />
+            </div>
+
+            <div className="pt-4 border-t border-dashed border-slate-200">
+              <p className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-widest">
+                Si deseas cambiarla (opcional)
+              </p>
+              <div className="space-y-3">
+                <input 
+                  type="password" 
+                  placeholder="Nueva contraseña" 
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all bg-slate-50 focus:bg-white text-sm placeholder:text-slate-400"
+                  value={formData.newPassword}
+                  onChange={e => setFormData({...formData, newPassword: e.target.value})}
+                />
+                <input 
+                  type="password" 
+                  placeholder="Confirmar nueva contraseña" 
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition-all bg-slate-50 focus:bg-white text-sm placeholder:text-slate-400"
+                  value={formData.confirmPassword}
+                  onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="pt-5 space-y-3 flex flex-col mt-1">
+              <button 
+                onClick={() => procesarAcceso(false)}
+                disabled={loading}
+                className="w-full bg-emerald-500 text-white py-3.5 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-emerald-600 hover:-translate-y-[1px] transition-all shadow-lg shadow-emerald-500/40 disabled:opacity-50 disabled:hover:translate-y-0 text-xs tracking-[0.2em] uppercase"
+              >
+                {loading ? "PROCESANDO..." : formData.newPassword ? "ACTUALIZAR Y ENTRAR" : "INGRESAR AL SISTEMA"}
+                <ArrowRight size={18} />
+              </button>
+              
+              <button 
+                onClick={() => procesarAcceso(true)}
+                disabled={loading || formData.newPassword.length > 0} 
+                className="w-full py-2.5 flex items-center justify-center gap-2 text-[11px] text-slate-500 font-bold hover:text-slate-800 transition-colors disabled:opacity-30 uppercase tracking-[0.18em]"
+              >
+                <CheckCircle size={16} />
+                Mantener DNI como clave
+              </button>
+            </div>
           </div>
         </div>
       </div>

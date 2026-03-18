@@ -54,10 +54,12 @@ export default function Navbar() {
                 to={item === "INICIO" ? "/" : `/${item.toLowerCase()}`}
                 className={`text-[12px] font-semibold transition-colors ${
                   isActive(item === "INICIO" ? "/" : `/${item.toLowerCase()}`) 
-                  ? inDashboard ? "text-emerald-300" : "text-primary"
+                  ? inDashboard
+                    ? "text-emerald-300"
+                    : "text-emerald-700"
                   : inDashboard
                     ? "text-slate-300 hover:text-white"
-                    : "text-muted-foreground hover:text-primary"
+                    : "text-slate-500 hover:text-emerald-600"
                 }`}
               >
                 {item}
@@ -65,8 +67,8 @@ export default function Navbar() {
               {isActive(item === "INICIO" ? "/" : `/${item.toLowerCase()}`) && (
                 <span
                   className={`mt-1 h-[2px] w-7 rounded-full ${
-                    inDashboard ? "bg-emerald-300" : "bg-primary"
-                  }`}
+                    inDashboard ? "bg-emerald-300" : "bg-emerald-600"
+                  } shadow-[0_0_18px_rgba(16,185,129,0.25)]`}
                 />
               )}
             </div>
@@ -81,7 +83,7 @@ export default function Navbar() {
                 className={`flex items-center gap-2 text-[13px] font-bold px-3 py-1.5 rounded-full border transition-all ${
                   inDashboard
                     ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-300"
-                    : "border-transparent text-primary hover:border-primary/30 hover:bg-primary/5"
+                    : "border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]"
                 }`}
               >
                 <LayoutDashboard size={16} /> PANEL DE CONTROL
@@ -95,10 +97,10 @@ export default function Navbar() {
           {!user ? (
             <Link
               to="/login"
-              className={`text-[13px] font-bold ${
+              className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full text-[12px] font-bold tracking-[0.18em] uppercase border transition-all ${
                 inDashboard
-                  ? "text-slate-200 hover:text-white"
-                  : "text-foreground hover:text-primary"
+                  ? "border-emerald-400/60 text-emerald-200 hover:bg-emerald-500/10"
+                  : "border-slate-200 text-slate-700 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 hover:shadow-[0_0_0_3px_rgba(16,185,129,0.08)]"
               }`}
             >
               INGRESAR
@@ -142,10 +144,10 @@ export default function Navbar() {
                   isActive(item.to)
                     ? inDashboard
                       ? "bg-emerald-500/20 text-emerald-300"
-                      : "bg-primary/5 text-primary"
+                      : "bg-emerald-500/15 text-emerald-700"
                     : inDashboard
                       ? "text-slate-200 hover:bg-slate-800/70"
-                      : "text-slate-700 hover:bg-slate-100"
+                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
                 }`}
               >
                 {item.label}
@@ -163,7 +165,7 @@ export default function Navbar() {
                   className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-xs font-bold tracking-[0.16em] uppercase ${
                     inDashboard
                       ? "bg-emerald-500/10 text-emerald-300 border border-emerald-400/60"
-                      : "bg-primary text-white border border-primary"
+                      : "bg-emerald-500/10 text-emerald-700 border border-emerald-400/60 hover:bg-emerald-500/15 hover:text-emerald-800"
                   }`}
                 >
                   <LayoutDashboard size={14} />
@@ -185,10 +187,10 @@ export default function Navbar() {
               <Link
                 to="/login"
                 onClick={() => setIsMobileOpen(false)}
-                className={`w-full text-center text-xs font-bold tracking-[0.16em] uppercase ${
+                className={`w-full text-center text-xs font-bold tracking-[0.16em] uppercase inline-flex items-center justify-center px-3 py-2 rounded-full border transition-all ${
                   inDashboard
-                    ? "text-slate-200 hover:text-white"
-                    : "text-slate-700 hover:text-primary"
+                    ? "text-slate-200 border-emerald-400/60 hover:bg-emerald-500/10"
+                    : "text-slate-700 border-slate-300 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700"
                 }`}
               >
                 Ingresar

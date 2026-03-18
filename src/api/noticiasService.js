@@ -23,6 +23,39 @@ function mapStatusToApi(statusText) {
   return 0; // borrador
 }
 
+function mapCategoriaToApi(categoria) {
+  if (categoria === null || categoria === undefined) return null;
+  if (typeof categoria === "number") return categoria;
+  const raw = String(categoria).trim();
+  if (!raw) return null;
+
+  // Si llega como "0".."6"
+  if (/^\d+$/.test(raw)) return Number(raw);
+
+  // Si llega como nombre del enum (ej. "Deportes")
+  const noAccents = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  const alias = {
+    institucional: 0,
+    academia: 1,
+    deportes: 2,
+    investigacion: 3,
+    cultura: 4,
+    convocatorias: 5,
+    bienestar: 6,
+
+    // Compatibilidad con strings viejos del front
+    resultados: 2,
+    jugadores: 2,
+    equipos: 2,
+  };
+
+  return alias[noAccents] ?? null;
+}
+
 function mapFromApi(apiItem) {
   if (!apiItem) return null;
 
@@ -44,12 +77,39 @@ function mapFromApi(apiItem) {
       : [];
 
   return {
-    id: apiItem.id,
-    slug: apiItem.slug || apiItem.id,
-    titulo: apiItem.title ?? apiItem.Title,
-    extracto: apiItem.excerpt ?? apiItem.Excerpt,
-    contenido: apiItem.content ?? apiItem.Content,
-    categoria: apiItem.category ?? apiItem.Category,
+    // El backend expone el DTO con propiedades PascalCase (Id, Slug, etc.)
+    // según cómo esté configurado el serializer, pueden llegar como `id`/`Id`.
+    id: apiItem.id ?? apiItem.Id,
+    slug:
+      apiItem.slug ??
+      apiItem.Slug ??
+      apiItem.id ??
+      apiItem.Id,
+    // Mantener compatibilidad con distintos nombres de propiedades (EN/ES) y defaults seguros
+    titulo:
+      apiItem.title ??
+      apiItem.Title ??
+      apiItem.titulo ??
+      apiItem.Titulo ??
+      "",
+    extracto:
+      apiItem.excerpt ??
+      apiItem.Excerpt ??
+      apiItem.extracto ??
+      apiItem.Extracto ??
+      "",
+    contenido:
+      apiItem.content ??
+      apiItem.Content ??
+      apiItem.contenido ??
+      apiItem.Contenido ??
+      "",
+    categoria:
+      apiItem.category ??
+      apiItem.Category ??
+      apiItem.categoria ??
+      apiItem.Categoria ??
+      null,
     etiquetas: tagsArray,
     destacada: Boolean(apiItem.isFeatured ?? apiItem.IsFeatured),
     permitirComentarios:
@@ -73,8 +133,8 @@ function mapFromApi(apiItem) {
       apiItem.updatedAt ||
       apiItem.UpdatedAt ||
       new Date().toISOString(),
-    vistas: apiItem.viewCount ?? apiItem.ViewCount ?? 0,
-    autor: apiItem.author ?? apiItem.Author ?? "SIGED",
+    vistas: apiItem.viewCount ?? apiItem.ViewCount ?? apiItem.vistas ?? apiItem.Vistas ?? 0,
+    autor: apiItem.author ?? apiItem.Author ?? apiItem.autor ?? apiItem.Autor ?? "SIGED",
   };
 }
 
@@ -97,7 +157,7 @@ function mapToApi(model) {
     title: model.titulo,
     excerpt: model.extracto,
     content: model.contenido,
-    category: model.categoria,
+    category: mapCategoriaToApi(model.categoria),
     tags,
     isFeatured: Boolean(model.destacada),
     allowComments:

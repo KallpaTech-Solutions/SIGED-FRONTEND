@@ -19,8 +19,8 @@ export default function TorneosPublicPage() {
   return (
     <div className="w-full min-h-screen bg-slate-50 font-inter">
       {/* Header ejecutivo */}
-      <section className="border-b border-slate-200 bg-slate-50">
-        <div className="container mx-auto px-4 pt-8 pb-10 max-w-5xl">
+      <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
+        <div className="container mx-auto px-4 max-w-5xl">
           <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900 border border-slate-800/60 shadow-[0_24px_60px_rgba(15,23,42,0.45)] px-6 py-8 md:px-10 md:py-10 text-white">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
