@@ -113,7 +113,8 @@ export default function NoticiasAdminPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Vista tipo tabla para escritorio / tablet grande */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
@@ -333,6 +334,188 @@ export default function NoticiasAdminPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Vista tipo tarjetas apiladas para móvil */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {cargando && (
+            <div className="px-4 py-6 text-center text-xs text-slate-500">
+              Cargando noticias...
+            </div>
+          )}
+
+          {!cargando &&
+            noticiasFiltradas.map((noticia) => (
+              <div key={noticia.id} className="p-4 flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <img
+                    src={noticia.imagenPrincipal}
+                    alt={noticia.titulo}
+                    className="w-16 h-16 rounded-lg object-cover border border-slate-200 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                      {getCategoryLabel(noticia.categoria)}
+                    </p>
+                    <h2 className="text-sm font-semibold text-slate-900 leading-snug">
+                      {noticia.titulo}
+                    </h2>
+                    <p className="text-[11px] text-slate-500 line-clamp-2">
+                      {noticia.extracto}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-slate-600">
+                  <span>
+                    {new Date(noticia.fechaPublicacion).toLocaleDateString(
+                      "es-PE",
+                      {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      }
+                    )}
+                  </span>
+                  <span>{noticia.vistas.toLocaleString("es-PE")} vistas</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-normal ${
+                      noticia.estado === "publicada"
+                        ? "bg-green-100 text-green-700 border border-green-200"
+                        : noticia.estado === "borrador"
+                        ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                        : "bg-slate-100 text-slate-700 border border-slate-200"
+                    }`}
+                  >
+                    {noticia.estado === "publicada"
+                      ? "Publicada"
+                      : noticia.estado === "borrador"
+                      ? "Borrador"
+                      : "Archivada"}
+                  </span>
+
+                  <div className="flex items-center gap-1.5 text-slate-500 text-xs">
+                    <Link
+                      to={`/noticia/${noticia.slug || noticia.id}`}
+                      className="p-1.5 rounded-full hover:bg-slate-100"
+                      aria-label="Ver noticia pública"
+                      title="Ver noticia pública"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Link>
+                    <Link
+                      to={`/PanelControl/noticias/${noticia.id}`}
+                      className="p-1.5 rounded-full hover:bg-slate-100"
+                      aria-label="Editar noticia"
+                      title="Editar noticia"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Link>
+                    <button
+                      type="button"
+                      className="p-1.5 rounded-full hover:bg-slate-100 disabled:opacity-50"
+                      aria-label="Cambiar estado de publicación"
+                      title="Cambiar estado de publicación"
+                      disabled={operandoId === noticia.id}
+                      onClick={() => {
+                        setEstadoMenuAbierto(
+                          estadoMenuAbierto === noticia.id ? null : noticia.id
+                        );
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-1.5 rounded-full hover:bg-red-50 text-red-500 disabled:opacity-50"
+                      aria-label="Eliminar noticia"
+                      title="Eliminar noticia"
+                      disabled={operandoId === noticia.id}
+                      onClick={async () => {
+                        if (operandoId === noticia.id) return;
+                        const confirmar = window.confirm(
+                          "¿Seguro que deseas eliminar esta noticia?",
+                        );
+                        if (!confirmar) return;
+                        setOperandoId(noticia.id);
+                        try {
+                          await deleteNoticia(noticia.id);
+                          setNoticias((prev) =>
+                            prev.filter((n) => n.id !== noticia.id),
+                          );
+                        } catch (error) {
+                          // eslint-disable-next-line no-console
+                          console.error("Error eliminando noticia", error);
+                        } finally {
+                          setOperandoId(null);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {estadoMenuAbierto === noticia.id && (
+                  <div className="mt-2 self-end bg-white border border-slate-200 rounded-lg shadow-lg text-xs min-w-[130px]">
+                    {[
+                      { value: "publicada", label: "Publicada" },
+                      { value: "borrador", label: "Borrador" },
+                      { value: "archivada", label: "Archivada" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={operandoId === noticia.id}
+                        onClick={async () => {
+                          if (opt.value === noticia.estado) {
+                            setEstadoMenuAbierto(null);
+                            return;
+                          }
+                          setOperandoId(noticia.id);
+                          try {
+                            const actualizada = await updateNoticia(noticia.id, {
+                              ...noticia,
+                              estado: opt.value,
+                            });
+                            setNoticias((prev) =>
+                              prev.map((n) =>
+                                n.id === noticia.id ? actualizada : n,
+                              ),
+                            );
+                          } catch (error) {
+                            // eslint-disable-next-line no-console
+                            console.error(
+                              "Error cambiando estado de noticia",
+                              error,
+                            );
+                          } finally {
+                            setOperandoId(null);
+                            setEstadoMenuAbierto(null);
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 ${
+                          noticia.estado === opt.value
+                            ? "text-primary font-semibold"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+
+          {!cargando && noticiasFiltradas.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-slate-500">
+              No se encontraron noticias con los filtros actuales.
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -441,32 +441,34 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
         </form>
 
         {/* FOOTER */}
-        <footer className="px-10 py-6 bg-slate-950 border-t border-slate-800 flex justify-between items-center">
-          <p className="text-[11px] text-slate-500 font-medium italic">
-            * El acceso inicial será con el número de DNI.
-          </p>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 text-slate-300 font-bold uppercase text-[11px] tracking-[0.18em] hover:text-white hover:bg-slate-800 rounded-full transition-colors"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleSubmit}
-              disabled={loading || (esEstudiante && !formData.estaMatriculado)} 
-              className={`px-8 py-3.5 rounded-xl font-bold text-[11px] uppercase tracking-[0.22em] shadow-lg transition-all flex items-center gap-2 text-slate-950 ${
-                esEstudiante && !formData.estaMatriculado 
-                ? 'bg-slate-700 cursor-not-allowed shadow-none text-slate-300' 
-                : editarUsuario
-                  ? 'bg-amber-400 hover:bg-amber-300 shadow-amber-500/30'
-                  : 'bg-emerald-400 hover:bg-emerald-300 shadow-emerald-500/40'
-              }`}
-            >
-              {loading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} 
-              {editarUsuario ? 'Guardar Cambios' : 'Registrar Usuario'}
-            </button>
+        <footer className="px-6 md:px-10 py-4 md:py-6 bg-slate-950 border-t border-slate-800">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-6">
+            <p className="text-[10px] md:text-[11px] text-slate-500 font-medium italic">
+              * El acceso inicial será con el número de DNI.
+            </p>
+            <div className="flex flex-col sm:flex-row w-full sm:w-auto items-stretch sm:items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto px-6 py-2.5 text-slate-300 font-bold uppercase text-[11px] tracking-[0.18em] hover:text-white hover:bg-slate-800 rounded-full transition-colors text-center"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSubmit}
+                disabled={loading || (esEstudiante && !formData.estaMatriculado)} 
+                className={`w-full sm:w-auto px-6 md:px-8 py-3 rounded-full md:rounded-xl font-bold text-[11px] uppercase tracking-[0.22em] shadow-lg transition-all flex items-center justify-center gap-2 text-slate-950 ${
+                  esEstudiante && !formData.estaMatriculado 
+                  ? 'bg-slate-700 cursor-not-allowed shadow-none text-slate-300' 
+                  : editarUsuario
+                    ? 'bg-amber-400 hover:bg-amber-300 shadow-amber-500/30'
+                    : 'bg-emerald-400 hover:bg-emerald-300 shadow-emerald-500/40'
+                }`}
+              >
+                {loading ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} 
+                {editarUsuario ? 'Guardar Cambios' : 'Registrar Usuario'}
+              </button>
+            </div>
           </div>
         </footer>
       </div>

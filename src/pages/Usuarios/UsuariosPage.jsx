@@ -219,9 +219,67 @@ export default function UsuariosPage() {
                             {iniciales}
                           </div>
                         )}
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-700 leading-tight mb-0.5">{nombre}</span>
-                          <span className="text-[11px] font-semibold text-slate-400 tracking-wider">DNI {u.dni}</span>
+                        <div className="flex flex-col gap-1 w-full">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-700 leading-tight mb-0.5">
+                              {nombre}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-400 tracking-wider">
+                              DNI {u.dni}
+                            </span>
+                          </div>
+
+                          {/* Acciones en columna para móviles */}
+                          <div className="mt-1 flex md:hidden items-center flex-wrap gap-1.5">
+                            <button 
+                              onClick={() => navigate(`/PanelControl/usuarios/${u.id}`)}
+                              className="px-2 py-1 text-[11px] rounded-full border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center gap-1"
+                              title="Perfil Detallado"
+                            >
+                              <ArrowRight size={14} />
+                              Ver
+                            </button>
+                            {can('security.user.manage') && (
+                              <>
+                                <button 
+                                  onClick={() => abrirEdicion(u)}
+                                  className="px-2 py-1 text-[11px] rounded-full border border-slate-200 text-slate-500 hover:bg-orange-50 hover:text-orange-600 transition-all flex items-center gap-1"
+                                  title="Editar Datos"
+                                >
+                                  <Edit size={14} />
+                                  Editar
+                                </button>
+                                <button 
+                                  onClick={() => handleResetPassword(u)}
+                                  className="px-2 py-1 text-[11px] rounded-full border border-slate-200 text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all flex items-center gap-1"
+                                  title="Resetear Clave"
+                                >
+                                  <Key size={14} />
+                                  Clave
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(u)}
+                                  className="px-2 py-1 text-[11px] rounded-full border border-slate-200 text-red-500 hover:bg-red-50 transition-all flex items-center gap-1"
+                                  title="Eliminar Usuario"
+                                >
+                                  <Trash2 size={14} />
+                                  Eliminar
+                                </button>
+                                <button 
+                                  onClick={() => handleToggleEstado(u)}
+                                  className={`px-2 py-1 text-[11px] rounded-full transition-all duration-300 flex items-center gap-1 ${
+                                    u.estaActivo 
+                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                    : 'bg-red-50 text-red-500 border border-red-200'
+                                  }`}
+                                  title={u.estaActivo ? "Desactivar Acceso" : "Activar Acceso"}
+                                >
+                                  <Power size={14} />
+                                  {u.estaActivo ? 'Activo' : 'Inactivo'}
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -239,7 +297,8 @@ export default function UsuariosPage() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 md:px-6 py-3 md:py-4">
+                    {/* Acciones en fila para escritorio */}
+                    <td className="hidden md:table-cell px-4 md:px-6 py-3 md:py-4">
                       <div className="flex items-center justify-center gap-1.5 md:gap-2">
                         {/* Ver Detalle - visible para quien tiene view */}
                         <button 

@@ -318,7 +318,7 @@ export default function OrganizacionesPage() {
           </p>
         </div>
       ) : vista === "cards" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {filtrados.map((org) => {
             const colorOrg = org.colorRepresentativo || "#0284c7";
             const isActiva = org.estaActivo;
@@ -339,7 +339,7 @@ export default function OrganizacionesPage() {
                   style={{ backgroundColor: colorOrg }}
                 />
 
-                <div className="absolute top-4 right-4 z-10">
+                    <div className="absolute top-4 right-4 z-10">
                   <span
                     className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest shadow-sm ${
                       isActiva
@@ -352,7 +352,7 @@ export default function OrganizacionesPage() {
                 </div>
 
                 <div className="p-8 flex flex-col h-full space-y-6">
-                  <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start">
                     <div
                       className="w-14 h-14 rounded-2xl flex items-center justify-center p-3 border-2 transition-colors"
                       style={{
@@ -372,7 +372,7 @@ export default function OrganizacionesPage() {
                     </div>
 
                     {can("core.org.manage") && (
-                      <div className="flex gap-1 bg-white/95 border border-slate-200 p-1 rounded-xl shadow-md opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
+                      <div className="flex gap-1 bg-white/95 border border-slate-200 p-1 rounded-xl shadow-md backdrop-blur-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={(e) => abrirEdicion(e, org)}
@@ -402,7 +402,7 @@ export default function OrganizacionesPage() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
+                    <div className="space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md"
@@ -430,14 +430,11 @@ export default function OrganizacionesPage() {
                   </div>
 
                   <div
-                    className="mt-auto pt-4 border-t flex items-center justify-between"
+                    className="mt-auto pt-4 border-t flex items-center justify-end"
                     style={{
                       borderColor: isActiva ? `${colorOrg}20` : "#e2e8f0",
                     }}
                   >
-                    <span className="text-[10px] font-bold text-slate-400">
-                      ID: {org.id}
-                    </span>
                     <div
                       className="w-5 h-5 rounded-full border-2 border-white shadow-md ring-2 ring-slate-100"
                       style={{ backgroundColor: colorOrg }}
@@ -458,11 +455,11 @@ export default function OrganizacionesPage() {
               <div
                 key={org.id}
                 onClick={() => irADetalles(org.id)}
-                className={`group flex items-center justify-between gap-4 rounded-2xl border bg-white/90 backdrop-blur-sm px-4 py-3 transition-all hover:-translate-y-[1px] hover:shadow-md cursor-pointer ${
+                className={`group flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 rounded-2xl border bg-white/90 backdrop-blur-sm px-4 py-3 transition-all hover:-translate-y-[1px] hover:shadow-md cursor-pointer ${
                   isActiva ? "border-slate-200" : "border-slate-200 bg-slate-50"
                 }`}
               >
-                <div className="flex items-center gap-4 min-w-0 flex-1">
+                <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
                   <div
                     className="w-11 h-11 rounded-2xl flex items-center justify-center p-2 border"
                     style={{
@@ -480,7 +477,7 @@ export default function OrganizacionesPage() {
                       getIcon(org.tipo)
                     )}
                   </div>
-                  <div className="flex flex-col min-w-0">
+                  <div className="flex flex-col min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md"
@@ -505,13 +502,10 @@ export default function OrganizacionesPage() {
                     >
                       {org.nombre}
                     </p>
-                    <p className="text-[10px] text-slate-400">
-                      ID: {org.id}
-                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between md:justify-end gap-3 mt-2 md:mt-0">
                   <span
                     className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${
                       isActiva

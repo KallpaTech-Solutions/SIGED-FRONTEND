@@ -360,18 +360,18 @@ export default function ModalOrganizacion({ isOpen, onClose, onRefresh, editarOr
           </div>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="pt-8 mt-8 border-t border-slate-200 flex justify-end gap-4">
+          <div className="pt-6 md:pt-8 mt-6 md:mt-8 border-t border-slate-200 flex flex-col md:flex-row md:justify-end gap-3 md:gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 text-slate-400 font-bold uppercase text-[11px] tracking-widest hover:text-slate-600"
+              className="w-full md:w-auto px-6 py-3 text-slate-400 font-bold uppercase text-[11px] tracking-widest hover:text-slate-600 text-center"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="bg-emerald-500 text-slate-900 px-10 py-3 rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-lg hover:bg-emerald-400 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="w-full md:w-auto bg-emerald-500 text-slate-900 px-8 md:px-10 py-3 rounded-full md:rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-lg hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
               {editarOrg ? 'Guardar cambios' : 'Registrar unidad'}
