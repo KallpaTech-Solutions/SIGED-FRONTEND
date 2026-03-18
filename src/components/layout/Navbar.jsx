@@ -109,15 +109,79 @@ export default function Navbar() {
         </div>
 
         {/* Botón Móvil */}
-        <button onClick={() => setIsMobileOpen(!isMobileOpen)} className="md:hidden text-foreground">
+        <button
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className={`md:hidden ${
+            inDashboard ? "text-slate-100" : "text-foreground"
+          }`}
+        >
           {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 
-      {/* Menú Móvil - Implementación simplificada */}
+      {/* Menú Móvil */}
       {isMobileOpen && (
-        <div className="md:hidden bg-white border-t border-border p-4 space-y-4">
-          {/* Aquí irían tus links del menú móvil siguiendo la misma lógica del showAdminPanel */}
+        <div
+          className={`md:hidden border-t border-border p-4 space-y-4 ${
+            inDashboard ? "bg-slate-950/95 text-slate-100" : "bg-white"
+          }`}
+        >
+          {/* Navegación pública */}
+          <div className="flex flex-col gap-2">
+            {[
+              { label: "Inicio", to: "/" },
+              { label: "Torneos", to: "/torneos" },
+              { label: "Noticias", to: "/noticias" },
+              { label: "Calendario", to: "/calendario" },
+            ].map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setIsMobileOpen(false)}
+                className={`w-full px-3 py-2 rounded-lg text-sm font-semibold tracking-wide ${
+                  isActive(item.to)
+                    ? inDashboard
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-primary/5 text-primary"
+                    : inDashboard
+                      ? "text-slate-200 hover:bg-slate-800/70"
+                      : "text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
+          {/* Acceso al panel / login */}
+          <div className="pt-2 border-t border-border/60 mt-2 flex flex-col gap-2">
+            {showAdminPanel ? (
+              <Link
+                to="/PanelControl"
+                onClick={() => setIsMobileOpen(false)}
+                className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-xs font-bold tracking-[0.16em] uppercase ${
+                  inDashboard
+                    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-400/60"
+                    : "bg-primary text-white border border-primary"
+                }`}
+              >
+                <LayoutDashboard size={14} />
+                Panel de control
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setIsMobileOpen(false)}
+                className={`w-full text-center text-xs font-bold tracking-[0.16em] uppercase ${
+                  inDashboard
+                    ? "text-slate-200 hover:text-white"
+                    : "text-slate-700 hover:text-primary"
+                }`}
+              >
+                Ingresar
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </nav>

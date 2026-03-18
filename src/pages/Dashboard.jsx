@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   Trophy,
@@ -10,12 +10,15 @@ import {
   ChevronRight,
   Loader2,
   Newspaper,
+  Menu,
+  X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Dashboard() {
   const { user, can, loading } = useAuth();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 1. Pantalla de carga global del Dashboard (Evita parpadeos y llamadas antes de tener usuario)
   if (loading || !user) {
@@ -63,10 +66,71 @@ export default function Dashboard() {
   const dashboardTitle = roleTitles[user?.rol?.toUpperCase()] || 'Portal SIGED';
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] bg-[#f8fafc] font-inter text-slate-900">
-      
-      {/* --- SIDEBAR --- */}
-      <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col sticky top-16 h-[calc(100vh-64px)] z-10 border-r border-slate-800">
+    <div className="relative flex min-h-[calc(100vh-64px)] bg-[#f8fafc] font-inter text-slate-900">
+      {/* --- SIDEBAR MÓVIL (drawer) --- */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)}>
+          <aside
+            className="absolute inset-y-0 left-0 w-64 bg-slate-900 text-slate-100 flex flex-col border-r border-slate-800 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 flex items-center justify-between border-b border-slate-800">
+              <span className="text-[11px] font-bold uppercase tracking-[0.26em] text-slate-400">
+                Menú SIGED
+              </span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <nav className="space-y-1.5">
+                {menuFiltrado.map((item, index) => (
+                  <Link
+                    key={index}
+                    to={item.path}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center justify-between group w-full px-3 py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-200 ${
+                      isActive(item.path)
+                        ? "bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/20"
+                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all ${
+                          isActive(item.path)
+                            ? "border-emerald-400/60 bg-slate-900/60"
+                            : "border-slate-700 bg-slate-900/40 group-hover:border-slate-500"
+                        }`}
+                      >
+                        <item.icon
+                          size={16}
+                          strokeWidth={isActive(item.path) ? 2.4 : 2}
+                          className={
+                            isActive(item.path)
+                              ? "text-emerald-300"
+                              : "text-slate-400 group-hover:text-slate-100"
+                          }
+                        />
+                      </div>
+                      <span>{item.title}</span>
+                    </div>
+                    {isActive(item.path) && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    )}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* --- SIDEBAR DESKTOP --- */}
+      <aside className="hidden md:flex w-64 bg-slate-900 text-slate-100 flex-col sticky top-16 h-[calc(100vh-64px)] z-10 border-r border-slate-800">
         <div className="p-6 flex-1">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.26em] mb-6 pl-2">
             Administración
@@ -127,11 +191,21 @@ export default function Dashboard() {
       </aside>
 
       {/* --- CONTENIDO PRINCIPAL --- */}
-      <main className="flex-1 p-10 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
-          <header className="mb-10">
-            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-600 px-6 py-5 md:px-8 md:py-6 shadow-[0_20px_60px_rgba(15,23,42,0.55)] border border-slate-800/60 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <header className="mb-6 md:mb-10">
+            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-600 px-5 py-4 md:px-8 md:py-6 shadow-[0_20px_60px_rgba(15,23,42,0.55)] border border-slate-800/60 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
               <div>
+                {/* Botón para abrir sidebar en mobile */}
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-100 md:hidden"
+                >
+                  <Menu size={14} />
+                  Menú del panel
+                </button>
+
                 <div className="flex items-center gap-2 text-emerald-200/80 mb-1">
                   <span className="text-[9px] font-bold uppercase tracking-[0.28em]">
                     Panel Principal
