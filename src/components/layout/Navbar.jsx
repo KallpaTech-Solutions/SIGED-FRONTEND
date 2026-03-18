@@ -6,12 +6,12 @@ import UserMenu from "./UserMenu";
 import logoUnas from "../../assets/LogoUNAS.png"; 
 
 export default function Navbar() {
-  const { user } = useAuth(); // Quitamos 'can' si no lo usaremos aquí
+  const { user, loading } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
 
-  // CORRECCIÓN: Ahora cualquier usuario logueado ve el botón
-  const showAdminPanel = !!user; 
+  // Mostramos acceso al panel solo si realmente hay sesión cargada
+  const showAdminPanel = !!user && !loading;
   const isActive = (path) => location.pathname === path;
   const inDashboard = location.pathname.startsWith("/PanelControl");
 
