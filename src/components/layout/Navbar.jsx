@@ -6,7 +6,7 @@ import UserMenu from "./UserMenu";
 import logoUnas from "../../assets/LogoUNAS.png"; 
 
 export default function Navbar() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout, loggingOut } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
 
@@ -156,18 +156,31 @@ export default function Navbar() {
           {/* Acceso al panel / login */}
           <div className="pt-2 border-t border-border/60 mt-2 flex flex-col gap-2">
             {showAdminPanel ? (
-              <Link
-                to="/PanelControl"
-                onClick={() => setIsMobileOpen(false)}
-                className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-xs font-bold tracking-[0.16em] uppercase ${
-                  inDashboard
-                    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-400/60"
-                    : "bg-primary text-white border border-primary"
-                }`}
-              >
-                <LayoutDashboard size={14} />
-                Panel de control
-              </Link>
+              <>
+                <Link
+                  to="/PanelControl"
+                  onClick={() => setIsMobileOpen(false)}
+                  className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-xs font-bold tracking-[0.16em] uppercase ${
+                    inDashboard
+                      ? "bg-emerald-500/10 text-emerald-300 border border-emerald-400/60"
+                      : "bg-primary text-white border border-primary"
+                  }`}
+                >
+                  <LayoutDashboard size={14} />
+                  Panel de control
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileOpen(false);
+                    if (!loggingOut) logout();
+                  }}
+                  disabled={loggingOut}
+                  className="w-full mt-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-full text-[11px] font-semibold tracking-[0.16em] uppercase border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                </button>
+              </>
             ) : (
               <Link
                 to="/login"
