@@ -12,7 +12,7 @@ const categories = [
   { value: "institucional", label: "Institucional" },
 ];
 
-const NOTICIAS_POR_PAGINA = 6;
+const NOTICIAS_POR_PAGINA = 10;
 
 export default function NoticiasPage() {
   const [busqueda, setBusqueda] = useState("");
@@ -20,6 +20,10 @@ export default function NoticiasPage() {
   const [paginaActual, setPaginaActual] = useState(1);
   const [noticias, setNoticias] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [headerSlide, setHeaderSlide] = useState(0); // destino (flechas/puntos/interval)
+  const [visibleSlide, setVisibleSlide] = useState(0); // contenido que se muestra (cambia después del fade out)
+  const [headerOpacity, setHeaderOpacity] = useState(1);
+  const FADE_DURATION_MS = 1500;
 
   useEffect(() => {
     let montado = true;
@@ -42,6 +46,7 @@ export default function NoticiasPage() {
     };
   }, []);
 
+  // noticia destacada según filtros
   const noticiasFiltradas = useMemo(() => {
     return noticias.filter((noticia) => {
       const cumpleCategoria =
@@ -63,48 +68,211 @@ export default function NoticiasPage() {
 
   const noticiaDestacada =
     noticiasFiltradas.find((n) => n.destacada) || noticiasFiltradas[0];
+
+  // Top 3 noticias más vistas (según filtro actual)
+  const topMasVistas = useMemo(() => {
+    return noticiasFiltradas
+      .slice()
+      .sort((a, b) => (b.vistas || 0) - (a.vistas || 0))
+      .slice(0, 3);
+  }, [noticiasFiltradas]);
+
+  const totalSlides = 1 + topMasVistas.length; // 0 = mensaje, 1..3 = top vistas
+
+  // carrusel del header: cambia automáticamente entre mensaje y top vistas
+  useEffect(() => {
+    if (totalSlides <= 1) {
+      setHeaderSlide(0);
+      setVisibleSlide(0);
+      return undefined;
+    }
+    const id = setInterval(() => {
+      setHeaderSlide((prev) => (prev + 1) % totalSlides);
+    }, 6000);
+    return () => clearInterval(id);
+  }, [totalSlides]);
+
+  // Ref para saber si ya estamos en medio de un fade (varios clics no encolan espera)
+  const transitionInProgressRef = React.useRef(false);
+
+  // Transición en dos pasos: desvanecer contenido actual (3s), luego mostrar el siguiente y hacerlo aparecer (3s)
+  useEffect(() => {
+    if (headerSlide === visibleSlide) return;
+
+    // Si el usuario dio otro clic mientras esperábamos: ir directo al slide elegido con fade-in
+    if (transitionInProgressRef.current) {
+      transitionInProgressRef.current = false;
+      setVisibleSlide(headerSlide);
+      requestAnimationFrame(() => setHeaderOpacity(1));
+      return undefined;
+    }
+
+    transitionInProgressRef.current = true;
+    setHeaderOpacity(0);
+
+    const timeoutId = setTimeout(() => {
+      transitionInProgressRef.current = false;
+      setVisibleSlide(headerSlide);
+      requestAnimationFrame(() => setHeaderOpacity(1));
+    }, FADE_DURATION_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [headerSlide, visibleSlide]);
+
   const noticiasRestantes = noticiasFiltradas.filter(
     (n) => n.id !== noticiaDestacada?.id
   );
 
-  const totalPaginas = Math.ceil(
-    noticiasRestantes.length / NOTICIAS_POR_PAGINA || 1
-  );
-  const indiceInicio = (paginaActual - 1) * NOTICIAS_POR_PAGINA;
-  const noticiasPaginadas = noticiasRestantes.slice(
-    indiceInicio,
-    indiceInicio + NOTICIAS_POR_PAGINA
-  );
+  const visibleCount = paginaActual * NOTICIAS_POR_PAGINA;
+  const noticiasPaginadas = noticiasRestantes.slice(0, visibleCount);
+
+  // Contenido de un slide del carrusel (índice 0 = mensaje + buscador, 1..n = noticia más vista)
+  const renderHeaderSlideContent = (slideIndex) => {
+    if (slideIndex === 0) {
+      return (
+        <div className="flex flex-col lg:flex-row gap-6 lg:items-center w-full">
+          <div className="flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-300 mb-2">
+              Portal de noticias · SIGED UNAS
+            </p>
+            <h1 className="text-xl md:text-2xl font-semibold text-white mb-1">
+              Novedades del deporte universitario UNAS
+            </h1>
+            <p className="text-xs md:text-sm text-emerald-50/90 max-w-xl">
+              Resultados, comunicados oficiales y cobertura ejecutiva de los
+              eventos deportivos de la universidad.
+            </p>
+          </div>
+          <div className="w-full lg:w-80">
+            <label className="text-[10px] font-semibold text-emerald-100 uppercase tracking-[0.18em] block mb-1">
+              Buscar noticia
+            </label>
+            <input
+              type="text"
+              placeholder="Título, categoría o etiquetas..."
+              value={busqueda}
+              onChange={(e) => {
+                setBusqueda(e.target.value);
+                setPaginaActual(1);
+              }}
+              className="w-full h-10 px-3 rounded-xl border border-emerald-400/40 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 bg-white/95 text-slate-900 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+      );
+    }
+    const noticia = topMasVistas[slideIndex - 1];
+    if (!noticia) return null;
+    return (
+      <Link
+        to={`/noticia/${noticia.slug || noticia.id}`}
+        className="grid grid-cols-1 md:grid-cols-[minmax(0,2.1fr)_minmax(0,3fr)] gap-4 md:gap-6 items-stretch group w-full"
+      >
+        <div className="relative h-40 md:h-44 rounded-2xl overflow-hidden bg-slate-900/70 border border-emerald-500/40 max-w-xl">
+          <img
+            src={noticia.imagenPrincipal}
+            alt={noticia.titulo}
+            className="w-full h-full object-contain group-hover:scale-[1.03] transition-transform duration-300"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3">
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+              {getCategoryLabel(noticia.categoria)}
+            </span>
+            <span className="text-[10px] text-emerald-100">
+              {new Date(noticia.fechaPublicacion).toLocaleDateString("es-PE", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col justify-center min-w-0 space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-200">
+            Noticias más vistas
+          </p>
+          <h2 className="text-base md:text-lg font-semibold text-white leading-snug line-clamp-3">
+            {noticia.titulo}
+          </h2>
+          <p className="text-[11px] md:text-sm text-emerald-50/90 line-clamp-3">
+            {noticia.extracto}
+          </p>
+          <p className="text-[10px] text-emerald-200/80">
+            {noticia.vistas ? `${noticia.vistas.toLocaleString("es-PE")} vistas · ` : ""}
+            {getCategoryLabel(noticia.categoria)}
+          </p>
+        </div>
+      </Link>
+    );
+  };
 
   return (
     <div className="w-full">
-      <section className="bg-linear-to-r from-primary/10 via-secondary/10 to-accent/10 border-b border-border py-10 md:py-14">
+      <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-              Portal de Noticias
-            </h1>
-            <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
-              Novedades, resultados y comunicados oficiales del deporte
-              universitario UNAS.
-            </p>
-          </div>
-
-          <div className="max-w-2xl mx-auto mt-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Buscar noticias por título, categoría o etiquetas..."
-                value={busqueda}
-                onChange={(e) => {
-                  setBusqueda(e.target.value);
-                  setPaginaActual(1);
+          {/* Tarjeta flotante tipo carrusel (mensaje / noticia destacada) */}
+          <div className="max-w-5xl mx-auto">
+            <div className="relative rounded-[28px] bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-800 shadow-[0_24px_70px_rgba(15,23,42,0.75)] border border-emerald-500/30 px-6 py-5 md:px-8 md:py-6 text-white overflow-hidden">
+              <div className="pointer-events-none absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.6),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.4),_transparent_55%)]" />
+              <div
+                className="relative z-10 min-h-40 md:min-h-44 flex items-center overflow-hidden"
+                style={{
+                  opacity: headerOpacity,
+                  transition: `opacity ${FADE_DURATION_MS}ms ease-in-out`,
                 }}
-                className="w-full h-11 px-4 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
+              >
+                {renderHeaderSlideContent(visibleSlide)}
+              </div>
+
+              {/* Controles carrusel */}
+              <button
+                type="button"
+                onClick={() =>
+                  setHeaderSlide((prev) =>
+                    totalSlides > 1 ? (prev - 1 + totalSlides) % totalSlides : 0
+                  )
+                }
+                className="hidden md:flex absolute left-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border border-emerald-400/50 bg-slate-900/70 text-emerald-100 items-center justify-center shadow-md hover:bg-slate-900"
+                aria-label="Anterior"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setHeaderSlide((prev) =>
+                    totalSlides > 1 ? (prev + 1) % totalSlides : 0
+                  )
+                }
+                className="hidden md:flex absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border border-emerald-400/50 bg-slate-900/70 text-emerald-100 items-center justify-center shadow-md hover:bg-slate-900"
+                aria-label="Siguiente"
+              >
+                ›
+              </button>
+
+              <div className="mt-3 flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHeaderSlide(0)}
+                  className={`w-2 h-2 rounded-full border border-emerald-300/70 transition-all ${
+                    headerSlide === 0 ? "bg-white w-4" : "bg-emerald-500/40"
+                  }`}
+                />
+                {topMasVistas.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => setHeaderSlide(index + 1)}
+                    className={`w-2 h-2 rounded-full border border-emerald-300/70 transition-all ${
+                      headerSlide === index + 1 ? "bg-white w-4" : "bg-emerald-500/40"
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        </div>        
       </section>
 
       <section className="bg-white border-b border-border sticky top-16 z-30">
@@ -198,21 +366,21 @@ export default function NoticiasPage() {
                     <Link
                       key={noticia.id}
                       to={`/noticia/${noticia.slug || noticia.id}`}
-                      className="flex flex-col sm:flex-row gap-3 sm:gap-4 bg-white border border-border rounded-xl p-4 hover:shadow-md transition-shadow"
+                      className="flex flex-col sm:flex-row gap-3 sm:gap-4 bg-white border border-border rounded-2xl p-4 hover:shadow-md hover:-translate-y-[1px] transition-all"
                     >
-                      <div className="w-full h-40 sm:w-28 sm:h-24 shrink-0 overflow-hidden rounded-lg">
+                      <div className="w-full h-40 sm:w-32 sm:h-24 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                         <img
                           src={noticia.imagenPrincipal}
                           alt={noticia.titulo}
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      <div className="flex-1 min-w-0 mt-2 sm:mt-0">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground mb-1">
-                          <span className="uppercase font-bold tracking-wide">
+                      <div className="flex-1 min-w-0 mt-1 sm:mt-0 flex flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                          <span className="uppercase font-bold tracking-wide text-primary">
                             {getCategoryLabel(noticia.categoria)}
                           </span>
-                          <span>•</span>
+                          <span className="text-slate-300">•</span>
                           <span>
                             {new Date(
                               noticia.fechaPublicacion
@@ -223,7 +391,7 @@ export default function NoticiasPage() {
                             })}
                           </span>
                         </div>
-                        <h3 className="text-sm md:text-base font-semibold text-foreground mb-1 line-clamp-2">
+                        <h3 className="text-sm md:text-base font-semibold text-foreground line-clamp-2">
                           {noticia.titulo}
                         </h3>
                         <p className="text-xs md:text-sm text-muted-foreground line-clamp-2">
@@ -234,42 +402,14 @@ export default function NoticiasPage() {
                   ))}
                 </div>
 
-                {totalPaginas > 1 && (
-                  <div className="flex items-center justify-center gap-2 pt-4 text-[11px] md:text-xs">
+                {visibleCount < noticiasRestantes.length && (
+                  <div className="flex items-center justify-center pt-5">
                     <button
-                      onClick={() =>
-                        setPaginaActual((p) => Math.max(1, p - 1))
-                      }
-                      disabled={paginaActual === 1}
-                      className="px-3 py-1.5 rounded-lg border text-xs font-semibold disabled:opacity-50"
+                      type="button"
+                      onClick={() => setPaginaActual((p) => p + 1)}
+                      className="px-5 py-2.5 rounded-full border border-slate-300 bg-white text-[11px] md:text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 hover:bg-slate-50 hover:border-primary/40 hover:text-primary transition-all"
                     >
-                      Anterior
-                    </button>
-                    {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(
-                      (pagina) => (
-                        <button
-                          key={pagina}
-                          onClick={() => setPaginaActual(pagina)}
-                          className={`w-7 h-7 rounded-full text-xs font-semibold ${
-                            paginaActual === pagina
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-white border border-border text-foreground"
-                          }`}
-                        >
-                          {pagina}
-                        </button>
-                      )
-                    )}
-                    <button
-                      onClick={() =>
-                        setPaginaActual((p) =>
-                          Math.min(totalPaginas, p + 1)
-                        )
-                      }
-                      disabled={paginaActual === totalPaginas}
-                      className="px-3 py-1.5 rounded-lg border text-xs font-semibold disabled:opacity-50"
-                    >
-                      Siguiente
+                      Cargar más noticias
                     </button>
                   </div>
                 )}

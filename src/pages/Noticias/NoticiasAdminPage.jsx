@@ -13,7 +13,8 @@ export default function NoticiasAdminPage() {
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [noticias, setNoticias] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [operando, setOperando] = useState(false);
+  const [operandoId, setOperandoId] = useState(null);
+  const [estadoMenuAbierto, setEstadoMenuAbierto] = useState(null);
 
   useEffect(() => {
     let montado = true;
@@ -49,16 +50,26 @@ export default function NoticiasAdminPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-800/60 shadow-[0_24px_60px_rgba(15,23,42,0.45)] text-white">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Gestión de Noticias</h1>
-          <p className="text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-white/70 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.28em]">
+              Panel Maestro
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-300">
+              Contenido institucional
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Gestión de noticias
+          </h1>
+          <p className="text-[11px] text-white/70 mt-1 max-w-xl">
             Crea, edita y administra las noticias que se muestran en el portal público.
           </p>
         </div>
         <Link
           to="/PanelControl/noticias/crear"
-          className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90"
+          className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-emerald-400 text-slate-900 text-xs font-bold uppercase tracking-[0.22em] shadow-lg shadow-emerald-500/40 hover:bg-emerald-300 hover:shadow-emerald-400/60 transition-all"
         >
           Nueva noticia
         </Link>
@@ -197,7 +208,7 @@ export default function NoticiasAdminPage() {
                         : "Archivada"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-xs">
+                  <td className="px-4 py-3 text-right text-xs relative">
                     <div className="inline-flex items-center gap-1.5 text-slate-500">
                       <Link
                         to={`/noticia/${noticia.slug || noticia.id}`}
@@ -220,47 +231,77 @@ export default function NoticiasAdminPage() {
                         className="p-1 rounded-full hover:bg-slate-100 disabled:opacity-50"
                         aria-label="Cambiar estado de publicación"
                         title="Cambiar estado de publicación"
-                        disabled={operando}
+                        disabled={operandoId === noticia.id}
                         onClick={async () => {
-                          if (operando) return;
-                          setOperando(true);
-                          try {
-                            const nextStatus =
-                              noticia.estado === "borrador"
-                                ? "publicada"
-                                : noticia.estado === "publicada"
-                                ? "archivada"
-                                : "borrador";
-                            const actualizada = await updateNoticia(noticia.id, {
-                              ...noticia,
-                              estado: nextStatus,
-                            });
-                            setNoticias((prev) =>
-                              prev.map((n) => (n.id === noticia.id ? actualizada : n)),
-                            );
-                          } catch (error) {
-                            // eslint-disable-next-line no-console
-                            console.error("Error cambiando estado de noticia", error);
-                          } finally {
-                            setOperando(false);
-                          }
+                          setEstadoMenuAbierto(
+                            estadoMenuAbierto === noticia.id ? null : noticia.id,
+                          );
                         }}
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
+                      {estadoMenuAbierto === noticia.id && (
+                        <div className="absolute right-6 bottom-8 z-20 bg-white border border-slate-200 rounded-lg shadow-lg text-xs min-w-[130px]">
+                          {[
+                            { value: "publicada", label: "Publicada" },
+                            { value: "borrador", label: "Borrador" },
+                            { value: "archivada", label: "Archivada" },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              disabled={operandoId === noticia.id}
+                              onClick={async () => {
+                                if (opt.value === noticia.estado) {
+                                  setEstadoMenuAbierto(null);
+                                  return;
+                                }
+                                setOperandoId(noticia.id);
+                                try {
+                                  const actualizada = await updateNoticia(noticia.id, {
+                                    ...noticia,
+                                    estado: opt.value,
+                                  });
+                                  setNoticias((prev) =>
+                                    prev.map((n) =>
+                                      n.id === noticia.id ? actualizada : n,
+                                    ),
+                                  );
+                                } catch (error) {
+                                  // eslint-disable-next-line no-console
+                                  console.error(
+                                    "Error cambiando estado de noticia",
+                                    error,
+                                  );
+                                } finally {
+                                  setOperandoId(null);
+                                  setEstadoMenuAbierto(null);
+                                }
+                              }}
+                              className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 ${
+                                noticia.estado === opt.value
+                                  ? "text-primary font-semibold"
+                                  : "text-slate-600"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <button
                         type="button"
                         className="p-1 rounded-full hover:bg-red-50 text-red-500 disabled:opacity-50"
                         aria-label="Eliminar noticia"
                         title="Eliminar noticia"
-                        disabled={operando}
+                        disabled={operandoId === noticia.id}
                         onClick={async () => {
-                          if (operando) return;
+                          if (operandoId === noticia.id) return;
                           const confirmar = window.confirm(
                             "¿Seguro que deseas eliminar esta noticia?",
                           );
                           if (!confirmar) return;
-                          setOperando(true);
+                          setOperandoId(noticia.id);
                           try {
                             await deleteNoticia(noticia.id);
                             setNoticias((prev) =>
@@ -270,7 +311,7 @@ export default function NoticiasAdminPage() {
                             // eslint-disable-next-line no-console
                             console.error("Error eliminando noticia", error);
                           } finally {
-                            setOperando(false);
+                            setOperandoId(null);
                           }
                         }}
                       >

@@ -48,38 +48,43 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center px-4 py-8 animate-fade-in">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8 animate-fade-in font-inter">
       <div className="w-full max-w-md">
-        <div className="bg-card rounded-xl shadow-lg overflow-hidden border border-border">
-          
-          <div className="bg-linear-to-r from-primary to-secondary p-8 text-primary-foreground">
+        <div className="rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.16)] overflow-hidden border-2 border-emerald-400 bg-emerald-100">
+          {/* Header institucional */}
+          <div className="bg-emerald-50/80 border-b-2 border-emerald-200 px-8 pt-7 pb-5">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center animate-scale-in">
-                <TreePine className="w-8 h-8" />
+              <div className="w-12 h-12 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-center animate-scale-in text-emerald-600">
+                <TreePine className="w-7 h-7" />
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-center tracking-tight font-montserrat uppercase">
-              SIGED UNAS
-            </h1>
-            <p className="text-center text-primary-foreground/90 text-sm mt-2 font-inter">
-              Sistema de Gestión de Eventos Deportivos
-            </p>
+            <div className="text-center space-y-1">
+              <p className="text-[10px] font-bold tracking-[0.28em] uppercase text-emerald-600/90">
+                Acceso institucional
+              </p>
+              <h1 className="text-2xl font-bold tracking-tight font-montserrat uppercase text-slate-900">
+                SIGED UNAS
+              </h1>
+              <p className="text-xs text-slate-500">
+                Sistema de Gestión de Eventos Deportivos
+              </p>
+            </div>
           </div>
 
-          <div className="p-8">
-            <h2 className="text-xl font-bold text-foreground mb-6 text-center font-montserrat">
-              Iniciar Sesión
+          <div className="p-8 bg-white">
+            <h2 className="text-lg font-bold text-slate-900 mb-6 text-center font-montserrat tracking-wide">
+              Iniciar sesión
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5 font-inter">
               {error && (
-                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg animate-scale-in">
+                <div className="p-3 bg-destructive/10 border-2 border-destructive/30 rounded-lg animate-scale-in">
                   <p className="text-xs text-destructive font-semibold text-center">{error}</p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase mb-2">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-2 tracking-[0.18em]">
                   DNI / Usuario
                 </label>
                 <input
@@ -88,13 +93,13 @@ export default function Login() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-50"
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase mb-2">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-2 tracking-[0.18em]">
                   Contraseña
                 </label>
                 <div className="relative">
@@ -114,50 +119,55 @@ export default function Login() {
                   // 🚫 Bloquea el clic derecho para que no puedan usar el menú "Pegar" del navegador
                   onContextMenu={(e) => e.preventDefault()}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all disabled:opacity-50"
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                   required
                 />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-500 transition-colors"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
 
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-[11px] text-slate-500">
                   La contraseña debe tener al menos{" "}
-                  <span className="font-semibold text-foreground">8 caracteres</span>.
+                  <span className="font-semibold text-slate-900">8 caracteres</span>.
                 </p>
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading || !isPasswordValid}
-                className="w-full py-3 bg-linear-to-r from-primary to-secondary text-primary-foreground rounded-lg font-bold hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold border-2 border-emerald-600 hover:bg-emerald-400 hover:border-emerald-500 hover:shadow-[0_18px_40px_rgba(16,185,129,0.25)] hover:scale-[1.01] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-xs tracking-[0.22em] uppercase"
               >
                 {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                  <>
+                    <div className="w-4 h-4 border-2 border-emerald-200 border-t-transparent rounded-full animate-spin" />
+                    <span className="font-montserrat tracking-[0.2em] text-[11px]">
+                      Ingresando...
+                    </span>
+                  </>
                 ) : (
                   <>
-                    <LogIn size={18} />
+                    <LogIn size={16} />
                     <span className="font-montserrat">INGRESAR</span>
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-8 bg-muted/50 border border-border rounded-lg p-4">
-              <p className="text-[11px] text-muted-foreground leading-relaxed text-center">
-                <span className="font-bold text-foreground italic">¿Problemas de acceso?</span><br />
+            <div className="mt-8 bg-slate-50 border-2 border-slate-200 rounded-lg p-4">
+              <p className="text-[11px] text-slate-500 leading-relaxed text-center">
+                <span className="font-bold text-slate-900 italic">¿Problemas de acceso?</span><br />
                 Contacta a la OTI o al Comité Deportivo para restablecer tu cuenta.
               </p>
             </div>
           </div>
 
-          <div className="px-8 py-3 bg-muted border-t border-border">
-            <p className="text-center text-[10px] text-muted-foreground uppercase font-semibold">
+          <div className="px-8 py-3 bg-slate-50 border-t border-slate-200">
+            <p className="text-center text-[10px] text-slate-400 uppercase font-semibold tracking-[0.2em]">
               © 2026 Universidad Nacional Agraria de la Selva
             </p>
           </div>

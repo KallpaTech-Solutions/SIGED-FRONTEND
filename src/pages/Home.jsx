@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Play, Users, Flame } from "lucide-react";
+import { Play, Users, Flame, ChevronLeft, ChevronRight } from "lucide-react";
 
 const liveMatches = [
   {
@@ -20,22 +20,22 @@ const liveMatches = [
 const sports = [
   {
     name: "Fútbol",
-    href: "/deportes/futbol",
+    href: "/torneos",
     color: "from-green-500 to-green-600",
   },
   {
     name: "Vóley",
-    href: "/deportes/voley",
+    href: "/torneos",
     color: "from-yellow-500 to-yellow-600",
   },
   {
     name: "Básquet",
-    href: "/deportes/basquet",
+    href: "/torneos",
     color: "from-orange-500 to-orange-600",
   },
   {
     name: "Futsal",
-    href: "/deportes/futsal",
+    href: "/torneos",
     color: "from-blue-500 to-blue-600",
   },
 ];
@@ -48,67 +48,177 @@ const sportDescriptions = {
   Futsal: "Fútbol rápido y dinámico en espacios reducidos.",
 };
 
+const heroSlides = [
+  {
+    id: 1,
+    title: "Pasión deportiva UNAS",
+    subtitle:
+      "Resultados en vivo y estadísticas actualizadas de Cachimbos e Interfacultades.",
+    badge: "Portal deportivo · SIGED UNAS",
+    bgClass: "from-slate-900 via-emerald-800 to-emerald-600",
+    ctaTo: "/torneos",
+    ctaLabel: "Ver torneos",
+  },
+  {
+    id: 2,
+    title: "Calendario competitivo",
+    subtitle:
+      "Consulta el cronograma oficial de encuentros y fases eliminatorias por disciplina.",
+    badge: "Agenda oficial UNAS",
+    bgClass: "from-slate-900 via-sky-900 to-sky-700",
+    ctaTo: "/calendario",
+    ctaLabel: "Ver calendario",
+  },
+  {
+    id: 3,
+    title: "Noticias y momentos clave",
+    subtitle:
+      "Resumen ejecutivo de lo más importante en cada jornada deportiva.",
+    badge: "Highlights del día",
+    bgClass: "from-slate-900 via-emerald-900 to-lime-700",
+    ctaTo: "/noticias",
+    ctaLabel: "Ver noticias",
+  },
+];
+
+const HERO_FADE_MS = 1500;
+
 export default function Home() {
+  const [targetSlide, setTargetSlide] = useState(0); // destino (flechas, puntos, intervalo)
+  const [visibleSlide, setVisibleSlide] = useState(0); // contenido mostrado (cambia tras el fade out)
+  const [heroOpacity, setHeroOpacity] = useState(1);
+  const visibleSlideRef = useRef(0);
+  visibleSlideRef.current = visibleSlide;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTargetSlide((visibleSlideRef.current + 1) % heroSlides.length);
+    }, 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Transición: desvanecer (1.5s), luego cambiar slide y aparecer (1.5s)
+  useEffect(() => {
+    if (targetSlide === visibleSlide) return;
+    setHeroOpacity(0);
+    const t = setTimeout(() => {
+      setVisibleSlide(targetSlide);
+      requestAnimationFrame(() => setHeroOpacity(1));
+    }, HERO_FADE_MS);
+    return () => clearTimeout(t);
+  }, [targetSlide, visibleSlide]);
+
+  const current = heroSlides[visibleSlide];
+
   return (
     <div className="w-full">
-      {/* Hero Section */}
-      <section className="relative h-[55vh] md:h-[60vh] bg-linear-to-r from-primary via-secondary to-primary overflow-hidden">
+      {/* Hero Section con desvanecimiento y flechas */}
+      <section
+        className={`relative h-[52vh] md:h-[56vh] bg-gradient-to-r ${current.bgClass} overflow-hidden transition-colors duration-700`}
+      >
+        {/* Textura suave */}
         <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2240%22 fill=%22none%22 stroke=%22white%22 stroke-width=%220.5%22 opacity=%220.1%22/></svg>')] bg-repeat"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.15),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(15,23,42,0.6),_transparent_55%)]" />
         </div>
 
-        <div className="container mx-auto px-4 h-full flex flex-col items-center justify-center relative z-10 text-center">          <div className="mb-6 animate-pulse-live">
-            <div className="mb-2 animate-pulse-live">
-                <Flame className="w-12 h-12 text-accent mx-auto animate-pulse" />
-            </div>
+        {/* Flechas laterales */}
+        <button
+          type="button"
+          onClick={() =>
+            setTargetSlide((visibleSlide - 1 + heroSlides.length) % heroSlides.length)
+          }
+          className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/15 border border-white/30 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
+          aria-label="Slide anterior"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setTargetSlide((visibleSlide + 1) % heroSlides.length)
+          }
+          className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/15 border border-white/30 text-white flex items-center justify-center hover:bg-white/25 transition-colors"
+          aria-label="Slide siguiente"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
 
-          {/* Reducimos tamaño de fuente y margen inferior */}
-          <h1 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight font-montserrat uppercase">
-            Pasión Deportiva UNAS
+        <div
+          className="container mx-auto px-4 h-full flex flex-col items-center justify-center relative z-10 text-center transition-opacity duration-[1500ms] ease-in-out"
+          style={{ opacity: heroOpacity }}
+        >
+          {/* Etiqueta superior */}
+          <div className="mb-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/15 border border-white/10 backdrop-blur-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+            <span className="text-[10px] font-semibold tracking-[0.22em] text-emerald-100 uppercase">
+              {current.badge}
+            </span>
+          </div>
+
+          <div className="mb-4">
+            <Flame className="w-10 h-10 text-amber-300 mx-auto animate-pulse" />
+          </div>
+
+          <h1 className="text-3xl md:text-4xl font-semibold text-white mb-2 leading-tight font-montserrat uppercase tracking-wide">
+            {current.title}
           </h1>
 
-          <p className="text-sm md:text-base text-white/90 mb-6 max-w-2xl font-inter">
-            Gestión integral de olimpiadas Cachimbos e Interfacultades.
-            <br />
-            Resultados en vivo, estadísticas actualizadas y toda la emoción del
-            deporte universitario.
+          <p className="text-xs md:text-sm text-emerald-50/90 mb-6 max-w-2xl font-inter">
+            {current.subtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">            <Link
-              to="/torneos?tab=activos"
-              className="group relative px-6 py-3 bg-destructive text-white rounded-lg font-bold text-base hover:shadow-xl transition-all overflow-hidden"            >
-              <span className="relative z-10 flex items-center justify-center gap-2">                <Flame className="w-5 h-5" />
-                VER TORNEOS ACTIVOS
-              </span>
-              <div className="absolute inset-0 bg-destructive/80 group-hover:opacity-0 transition-opacity"></div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to={current.ctaTo}
+              className="group relative inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full text-[13px] font-semibold uppercase tracking-[0.18em] bg-gradient-to-r from-amber-500 to-red-500 text-white shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:shadow-[0_18px_55px_rgba(0,0,0,0.65)] transition-all"
+            >
+              <Flame className="w-4 h-4" />
+              {current.ctaLabel}
             </Link>
           </div>
 
-          {/* Indicador de partidos vivos más discreto */}
-          <div className="mt-6 inline-block bg-white/10 backdrop-blur-xs rounded-full px-4 py-2 text-white border border-white/20">
-            <p className="flex items-center gap-2 text-xs md:text-sm">
-              <span className="inline-block w-2 h-2 bg-destructive rounded-full animate-pulse-live"></span>
-              <span className="font-medium">
-                {liveMatches.length} partidos en vivo ahora
+          {/* Indicador de partidos en vivo */}
+          <div className="mt-5 inline-flex items-center gap-3 bg-black/20 backdrop-blur-sm rounded-full px-4 py-1.5 text-white border border-white/10">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500/90">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            </span>
+            <p className="flex items-center gap-1 text-[11px] md:text-xs">
+              <span className="font-semibold">
+                {liveMatches.length} partido{liveMatches.length !== 1 && "s"} en vivo ahora
               </span>
             </p>
           </div>
-        </div>
+
+          {/* Indicadores del carrusel */}
+          <div className="mt-4 flex justify-center gap-2">
+            {heroSlides.map((slide, idx) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => setTargetSlide(idx)}
+                className={`w-2 h-2 rounded-full border border-white/40 transition-all ${
+                  idx === visibleSlide ? "bg-white w-4" : "bg-white/10"
+                }`}
+                aria-label={`Ir al slide ${idx + 1}`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Ongoing Tournaments Section - Región Común */}
       <section className="py-12 bg-linear-to-b from-white to-primary-50 border-t-4 border-secondary">        <div className="container mx-auto px-4">
-          {/* Section Header - Proximidad y Continuidad */}
-          <div className="mb-16 max-w-3xl">
+          {/* Section Header - vista ejecutiva torneos */}
+          <div className="mb-16 max-w-4xl">
             <div className="flex items-start gap-4">
               <div className="w-1.5 h-14 bg-linear-to-b from-primary to-primary/50 rounded-full shrink-0"></div>
               <div>
-                <h2 className="text-4xl font-bold text-foreground leading-tight">
-                  Torneos en Curso
+                <h2 className="text-4xl font-bold text-foreground leading-tight tracking-tight">
+                  Torneos y olimpiadas UNAS
                 </h2>
-                <p className="text-base text-muted-foreground mt-3 font-medium">
-                  Competencias actuales en las que puedes participar
+                <p className="text-base text-muted-foreground mt-3 font-medium max-w-2xl">
+                  Vista general de los campeonatos inter escuelas profesionales. Muy
+                  pronto: fixtures, llaves de campeonato y resultados en tiempo real.
                 </p>
               </div>
             </div>
@@ -121,12 +231,12 @@ export default function Home() {
                 id: 1,
                 slug: "interfacultades-2026",
                 title: "INTERFACULTADES 2026",
-                status: "En Progreso",
+                status: "Próximamente",
                 description:
-                  "La competencia deportiva más importante de la UNAS. Todas las facultades compitiendo por la gloria.",
-                daysLeft: 18,
+                  "Olimpiadas inter escuelas profesionales: fútbol, futsal, vóley y básquet — varones y mujeres. Fixtures y llaves de campeonato en desarrollo.",
+                daysLeft: "—",
                 totalTeams: 42,
-                progress: 65,
+                progress: 0,
                 color: "primary",
               },
             ].map((tournament) => (
@@ -138,18 +248,18 @@ export default function Home() {
                   <div
                     className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                       tournament.id === 1
-                        ? "bg-primary-100 text-primary"
+                        ? "bg-amber-100 text-amber-700"
                         : "bg-accent-100 text-accent"
                     }`}
                   >
                     {tournament.status}
                   </div>
                   <div className="text-right">
-                    <p className="text-3xl font-bold text-foreground">
-                      Faltan {tournament.daysLeft}
+                    <p className="text-2xl font-bold text-foreground">
+                      {tournament.daysLeft}
                     </p>
                     <p className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">
-                      Días para la final
+                      En desarrollo
                     </p>
                   </div>
                 </div>
@@ -165,19 +275,17 @@ export default function Home() {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="font-bold text-foreground">
-                        Progreso del Torneo
+                        Lo que vendrá
                       </span>
                       <span className="text-muted-foreground">
-                        {tournament.progress}%
+                        Fixtures · Llaves
                       </span>
                     </div>
                     <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-1000 ${
-                          tournament.id === 1 ? "bg-primary" : "bg-accent"
-                        }`}
-                        style={{ width: `${tournament.progress}%` }}
-                      ></div>
+                        className="h-full rounded-full bg-muted transition-all duration-1000"
+                        style={{ width: "0%" }}
+                      />
                     </div>
                   </div>
 
@@ -191,11 +299,11 @@ export default function Home() {
                   </div>
 
                   <Link
-                    to={`/torneo/${tournament.slug}`}
+                    to="/torneos"
                     className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm"
                   >
                     <Users className="w-4 h-4" />
-                    VER DETALLES
+                    Ver torneos (en desarrollo)
                   </Link>
                 </div>
               </div>
@@ -204,10 +312,10 @@ export default function Home() {
 
           <div className="text-center mt-8">
             <Link
-              to="/torneos?tab=activos"
+              to="/torneos"
               className="text-primary hover:text-primary-700 font-bold text-lg flex items-center gap-2 mx-auto w-fit"
             >
-              Ver todos los torneos →
+              Ver torneos (en desarrollo) →
             </Link>
           </div>
         </div>
@@ -216,16 +324,17 @@ export default function Home() {
       {/* Live Matches Section - Región Común y Similitud */}
       <section className="py-20 bg-linear-to-b from-white via-white to-primary-50 border-t-4 border-secondary">
         <div className="container mx-auto px-4">
-          {/* Section Header - Proximidad y Continuidad */}
-          <div className="mb-16 max-w-3xl">
+          {/* Section Header - Partidos hoy */}
+          <div className="mb-16 max-w-4xl">
             <div className="flex items-start gap-4">
               <div className="w-1.5 h-14 bg-linear-to-b from-secondary to-secondary/50 rounded-full shrink-0"></div>
               <div>
-                <h2 className="text-4xl font-bold text-foreground leading-tight">
+                <h2 className="text-4xl font-bold text-foreground leading-tight tracking-tight">
                   Partidos Hoy
                 </h2>
-                <p className="text-base text-muted-foreground mt-3 font-medium">
-                  Sigue los encuentros de hoy en vivo
+                <p className="text-base text-muted-foreground mt-3 font-medium max-w-2xl">
+                  Módulo de marcadores en tiempo real. Mientras lo terminamos, puedes
+                  explorar la experiencia visual de un encuentro en vivo.
                 </p>
               </div>
             </div>
@@ -316,16 +425,17 @@ export default function Home() {
       {/* Latest News Section - Región Común y Similitud */}
       <section className="py-20 bg-white border-t-4 border-accent">
         <div className="container mx-auto px-4">
-          {/* Section Header */}
-          <div className="mb-16 max-w-3xl">
+          {/* Section Header - Noticias */}
+          <div className="mb-16 max-w-4xl">
             <div className="flex items-start gap-4">
               <div className="w-1.5 h-14 bg-linear-to-b from-accent to-accent/50 rounded-full shrink-0"></div>
               <div>
-                <h2 className="text-4xl font-bold text-foreground leading-tight">
+                <h2 className="text-4xl font-bold text-foreground leading-tight tracking-tight">
                   Últimas Noticias
                 </h2>
-                <p className="text-base text-muted-foreground mt-3 font-medium">
-                  Mantente informado de los eventos más importantes
+                <p className="text-base text-muted-foreground mt-3 font-medium max-w-2xl">
+                  Resumen ejecutivo de lo más relevante de las jornadas deportivas:
+                  resultados clave, crónicas y contenido destacado.
                 </p>
               </div>
             </div>
@@ -359,9 +469,12 @@ export default function Home() {
                   <h3 className="text-lg font-bold text-foreground mb-4 line-clamp-2">
                     {news.title}
                   </h3>
-                  <button className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary-700 transition-colors text-sm">
-                    VER DETALLES
-                  </button>
+                  <Link
+                    to="/noticias"
+                    className="block w-full py-2 bg-primary text-primary-foreground rounded-lg font-bold hover:bg-primary-700 transition-colors text-sm text-center"
+                  >
+                    Ver noticias
+                  </Link>
                 </div>
               </div>
             ))}
@@ -429,9 +542,12 @@ export default function Home() {
                   <div className="w-12 h-1 bg-linear-to-r from-transparent via-primary/30 to-transparent rounded-full mx-auto mb-4"></div>
 
                   {/* CTA */}
-                  <p className="text-xs text-primary font-bold uppercase tracking-wide">
-                    Ver disciplinas
-                  </p>
+                  <Link
+                    to={sport.href}
+                    className="text-xs text-primary font-bold uppercase tracking-wide hover:underline"
+                  >
+                    Ver en torneos
+                  </Link>
                 </div>
               );
             })}

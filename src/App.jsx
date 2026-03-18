@@ -4,6 +4,7 @@ import { ConfirmProvider } from "./context/ConfirmContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Navbar from "./components/layout/Navbar";
+import Footer from "./components/layout/Footer";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +14,8 @@ import UsuarioDetalle from "./pages/Usuarios/UsuarioDetalle";
 import SuperAdminSummary from "./pages/Inicio/SuperAdminSummary";
 import ConfiguracionPage from "./pages/Seguridad/ConfiguracionPage";
 import TorneosPage from "./pages/Torneos/TorneosPage";
+import TorneosPublicPage from "./pages/Torneos/TorneosPublicPage";
+import CalendarioPage from "./pages/Calendario/CalendarioPage";
 import OrganizacionesPage from "./pages/Organizaciones/OrganizacionesPage";
 import EstudianteSummary from "./pages/Inicio/EstudianteSummary";
 import EncargadoSummary from "./pages/Inicio/EncargadoSummary";
@@ -65,6 +68,8 @@ function App() {
                 />
                 <Route path="/noticias" element={<NoticiasPage />} />
                 <Route path="/noticia/:slug" element={<NoticiaDetalle />} />
+                <Route path="/torneos" element={<TorneosPublicPage />} />
+                <Route path="/calendario" element={<CalendarioPage />} />
 
                 {/* --- 🟢 PANEL ÚNICO (Consolidado y Protegido) --- */}
                 <Route
@@ -110,6 +115,7 @@ function App() {
                 <Route path="*" element={<Home />} />
               </Routes>
             </main>
+            <Footer />
           </ToastProvider>
         </ConfirmProvider>
       </AuthProvider>

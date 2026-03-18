@@ -14,11 +14,11 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 export default function Dashboard() {
-  const { user, can, loading } = useAuth(); // 👈 Añadimos loading si tu context lo tiene
+  const { user, can, loading } = useAuth();
   const location = useLocation();
 
-  // 1. Pantalla de carga global del Dashboard (Evita parpadeos)
-  if (loading) {
+  // 1. Pantalla de carga global del Dashboard (Evita parpadeos y llamadas antes de tener usuario)
+  if (loading || !user) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
         <Loader2 className="animate-spin text-primary mb-4" size={40} />
@@ -66,42 +66,59 @@ export default function Dashboard() {
     <div className="flex min-h-[calc(100vh-64px)] bg-[#f8fafc] font-inter text-slate-900">
       
       {/* --- SIDEBAR --- */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col sticky top-16 h-[calc(100vh-64px)] z-10">
+      <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col sticky top-16 h-[calc(100vh-64px)] z-10 border-r border-slate-800">
         <div className="p-6 flex-1">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-6 pl-2">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.26em] mb-6 pl-2">
             Administración
           </p>
-          
+
           <nav className="space-y-1.5">
             {menuFiltrado.map((item, index) => (
               <Link 
                 key={index}
                 to={item.path} 
-                className={`flex items-center justify-between group w-full px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 ${
+                className={`flex items-center justify-between group w-full px-4 py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-200 ${
                   isActive(item.path) 
-                  ? "bg-primary/5 text-primary" 
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  ? "bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/20"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <item.icon size={18} strokeWidth={isActive(item.path) ? 2.5 : 2} /> 
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center border transition-all ${
+                    isActive(item.path)
+                      ? "border-emerald-400/60 bg-slate-900/60"
+                      : "border-slate-700 bg-slate-900/40 group-hover:border-slate-500"
+                  }`}>
+                    <item.icon
+                      size={16}
+                      strokeWidth={isActive(item.path) ? 2.4 : 2}
+                      className={isActive(item.path) ? "text-emerald-300" : "text-slate-400 group-hover:text-slate-100"}
+                    />
+                  </div>
                   <span>{item.title}</span>
                 </div>
-                {isActive(item.path) && <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                {isActive(item.path) && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                )}
               </Link>
             ))}
           </nav>
         </div>
 
         {/* Footer del Sidebar */}
-        <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-6 border-t border-slate-800 bg-slate-950/60">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-300 border border-emerald-400/40">
               <Activity size={16} />
             </div>
             <div className="flex flex-col overflow-hidden">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Organización</span>
-              <span className="text-[11px] font-bold text-slate-700 truncate" title={user?.nombreOrganizacion || "Sede Central"}>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                Organización
+              </span>
+              <span
+                className="text-[11px] font-semibold text-slate-100 truncate"
+                title={user?.nombreOrganizacion || "Sede Central"}
+              >
                 {user?.nombreOrganizacion || "Sede Central"}
               </span>
             </div>
@@ -112,18 +129,26 @@ export default function Dashboard() {
       {/* --- CONTENIDO PRINCIPAL --- */}
       <main className="flex-1 p-10 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
-          <header className="mb-10 flex justify-between items-end">
-            <div>
-              <div className="flex items-center gap-2 text-slate-400 mb-2">
-                 <span className="text-[10px] font-bold uppercase tracking-widest">Panel Principal</span>
-                 <ChevronRight size={12} />
-                 <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+          <header className="mb-10">
+            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-600 px-6 py-5 md:px-8 md:py-6 shadow-[0_20px_60px_rgba(15,23,42,0.55)] border border-slate-800/60 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-200/80 mb-1">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.28em]">
+                    Panel Principal
+                  </span>
+                  <ChevronRight size={11} className="text-emerald-300" />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-emerald-100">
                     {menuItems.find(i => isActive(i.path))?.title || 'Inicio'}
-                 </span>
+                  </span>
+                </div>
+                <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">
+                  {dashboardTitle}
+                </h1>
+                <p className="mt-1 text-[11px] text-slate-200/80 max-w-xl">
+                  Vista ejecutiva del entorno SIGED. Personaliza tu panel desde{' '}
+                  <span className="font-semibold">Configuración &gt; Mi Dashboard</span>.
+                </p>
               </div>
-              <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
-                {dashboardTitle}
-              </h1>
             </div>
           </header>
 

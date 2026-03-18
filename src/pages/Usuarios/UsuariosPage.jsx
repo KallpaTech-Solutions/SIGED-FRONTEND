@@ -154,7 +154,7 @@ export default function UsuariosPage() {
           {can('security.user.manage') && (
             <button 
               onClick={() => { setUsuarioAEditar(null); setIsModalOpen(true); }} 
-              className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-primary-700 transition-all shadow-lg shadow-primary/20 uppercase tracking-wider"
+              className="bg-emerald-400 text-slate-900 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-[0.22em] hover:bg-emerald-300 transition-all shadow-lg shadow-emerald-500/40 flex items-center gap-2 hover:shadow-emerald-400/60"
             >
               <UserPlus size={18} /> Registrar
             </button>

@@ -8,6 +8,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loggingOut, setLoggingOut] = useState(false);
     const navigate = useNavigate();
 
     // --- FUNCIÓN INTERNA PARA PROCESAR EL TOKEN ---
@@ -39,19 +40,26 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = (data) => {
-        // 🛡️ Ahora solo buscamos un nombre
+        // 🛡️ Si requiere cambio de contraseña, redirigimos ahí primero
         if (data.requiereCambioPassword) {
             localStorage.setItem("temp_user", JSON.stringify(data));
-            navigate('/Seguridad/update-password'); // 👈 Asegúrate que la 'S' sea mayúscula como en App.jsx
+            navigate('/Seguridad/update-password');
             return; 
         }
     
         const userWithPermissions = processToken(data);
+
+        // 1. Guardamos en storage
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(userWithPermissions));
+
+        // 2. Actualizamos el estado global
         setUser(userWithPermissions);
         
-        navigate('/PanelControl');
+        // 3. Damos un tic al render antes de navegar para evitar carreras
+        setTimeout(() => {
+            navigate('/PanelControl', { replace: true });
+        }, 10);
     };
 
     const completePasswordChange = (finalUserData) => {
@@ -63,8 +71,8 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("user", JSON.stringify(userWithPermissions));
         setUser(userWithPermissions);
         
-        // ✅ CORRECCIÓN: Redirección simple
-        window.location.href = '/dashboard';
+        // Navegamos con React para evitar recarga completa
+        navigate('/PanelControl', { replace: true });
     };
 
     useEffect(() => {
@@ -73,12 +81,14 @@ export const AuthProvider = ({ children }) => {
         
         if (savedUser && token) {
             try {
+                // Solo hidratamos el usuario; la navegación la manejan las rutas/protected routes
                 setUser(JSON.parse(savedUser));
             } catch (e) {
-                logout();
+                localStorage.clear();
+                setUser(null);
             }
         }
-        setLoading(false);
+        setLoading(false); // siempre liberamos el loading al final
     }, []);
 
     // Cerrar sesión también en otras pestañas cuando desaparece el token
@@ -107,6 +117,9 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = async () => {
+        if (loggingOut) return;
+
+        setLoggingOut(true);
         try {
             // Avisamos al backend para que invalide sesión / registre auditoría
             await api.post('/Auth/logout');
@@ -116,6 +129,7 @@ export const AuthProvider = ({ children }) => {
         } finally {
             localStorage.clear(); 
             setUser(null);
+            setLoggingOut(false);
             navigate('/login');
         }
     };
@@ -129,7 +143,8 @@ export const AuthProvider = ({ children }) => {
             can,        // ✅ Ahora es 100% seguro
             hasRole, 
             completePasswordChange, 
-            loading 
+            loading,
+            loggingOut
         }}>
             {!loading && children}
         </AuthContext.Provider>

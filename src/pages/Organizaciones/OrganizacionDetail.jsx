@@ -47,12 +47,16 @@ export default function OrganizacionDetail() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center gap-6 bg-white font-inter">
-      <div className="w-10 h-10 border-4 border-primary/10 border-t-primary rounded-full animate-spin"></div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.4em] animate-pulse">Sincronizando Identidad UNAS</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-[#f8fafc] font-inter">
+        <div className="w-9 h-9 border-[3px] border-primary/10 border-t-primary rounded-full animate-spin" />
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">
+          Cargando ficha institucional...
+        </p>
+      </div>
+    );
+  }
 
   if (!org) return <div className="p-20 text-center font-bold text-slate-300 uppercase tracking-widest">Unidad no encontrada</div>;
 
@@ -77,7 +81,7 @@ export default function OrganizacionDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-inter pb-24 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#f8fafc] font-inter pb-16 relative overflow-x-hidden">
       
       {/* 🖼️ VISUALIZADOR (LIGHTBOX) */}
       {selectedImage && (
@@ -119,11 +123,15 @@ export default function OrganizacionDetail() {
         </div>
       )}
 
-      {/* 🚀 HERO SECTION */}
-      <div className="relative h-[42vh] w-full">
+      {/* 🚀 HERO SECTION (más compacto) */}
+      <div className="relative h-[32vh] md:h-[36vh] w-full">
         {org.portadaUrl ? (
           <div className="w-full h-full cursor-zoom-in group relative" onClick={() => setSelectedImage(org.portadaUrl)}>
-            <img src={org.portadaUrl} className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110" alt="" />
+            <img
+              src={org.portadaUrl}
+              className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-110"
+              alt=""
+            />
             <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 transition-all duration-500 flex items-center justify-center">
                <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all duration-500 scale-50 group-hover:scale-100 shadow-2xl"><Maximize2 size={28} /></div>
             </div>
@@ -134,20 +142,24 @@ export default function OrganizacionDetail() {
           </div>
         )}
         <div className="absolute inset-0 bg-linear-to-t from-[#f8fafc] via-slate-900/20 to-slate-900/40 pointer-events-none" />
-        <div className="absolute top-8 left-8 z-50">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-3 px-5 py-2.5 bg-white/10 hover:bg-white backdrop-blur-lg text-white hover:text-slate-900 rounded-2xl transition-all border border-white/10 shadow-xl">
-            <ArrowLeft size={18} /><span className="text-[11px] font-bold uppercase tracking-widest text-inherit">Regresar</span>
+        <div className="absolute top-5 left-5 z-50">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white backdrop-blur-lg text-white hover:text-slate-900 rounded-2xl transition-all border border-white/10 shadow-xl text-[10px] font-semibold tracking-[0.18em] uppercase"
+          >
+            <ArrowLeft size={16} />
+            <span className="text-inherit">Regresar</span>
           </button>
         </div>
       </div>
 
       {/* 📊 ESTRUCTURA FLOTANTE */}
-      <div className="max-w-7xl mx-auto px-6 -mt-32 relative z-20">
+      <div className="max-w-6xl mx-auto px-6 -mt-20 md:-mt-24 relative z-20">
         
         {/* CABECERA */}
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-16">
+        <div className="flex flex-col md:flex-row items-center md:items-end gap-6 mb-10">
            <div className="relative group cursor-zoom-in" onClick={() => org.logoUrl && setSelectedImage(org.logoUrl)}>
-              <div className="w-40 h-40 md:w-52 md:h-52 bg-white rounded-[3rem] p-6 shadow-xl flex items-center justify-center border-[6px] border-white overflow-hidden transition-all duration-500 group-hover:shadow-primary/20">
+              <div className="w-28 h-28 md:w-32 md:h-32 bg-white rounded-[2rem] p-4 shadow-xl flex items-center justify-center border-[5px] border-white overflow-hidden transition-all duration-500 group-hover:shadow-primary/20">
                 {org.logoUrl ? <img src={org.logoUrl} className="w-full h-full object-contain" alt="Logo" /> : <School size={60} className="text-slate-100" />}
                 <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-all flex items-center justify-center">
                    <Maximize2 className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" size={24} />
@@ -156,15 +168,26 @@ export default function OrganizacionDetail() {
               <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-emerald-500 border-4 border-white shadow-lg flex items-center justify-center text-white"><Award size={18} /></div>
            </div>
 
-           <div className="flex-1 text-center md:text-left space-y-4">
+           <div className="flex-1 text-center md:text-left space-y-3">
               <div className="flex items-center justify-center md:justify-start gap-3">
-                <span className="px-4 py-1.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg">{org.tipo}</span>
-                <span className="px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-lg" style={{ backgroundColor: org.colorRepresentativo }}>{org.abreviatura}</span>
+                <span className="px-3 py-1 bg-slate-900 text-white rounded-xl text-[9px] font-semibold uppercase tracking-[0.2em] shadow-lg">
+                  {org.tipo}
+                </span>
+                <span
+                  className="px-3 py-1 rounded-xl text-[9px] font-semibold uppercase tracking-[0.2em] text-white shadow-lg"
+                  style={{ backgroundColor: org.colorRepresentativo }}
+                >
+                  {org.abreviatura}
+                </span>
               </div>
-              <h1 className="text-4xl md:text-6xl font-bold text-slate-800 tracking-tight leading-none">{org.nombre}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight leading-snug">
+                {org.nombre}
+              </h1>
               {org.lema && (
-                <div className="flex items-center justify-center md:justify-start gap-3 text-slate-400 font-medium italic text-lg">
-                  <span className="w-8 h-px bg-slate-200"></span><Quote size={16} className="text-primary opacity-40" /><span>{org.lema}</span>
+                <div className="flex items-center justify-center md:justify-start gap-2 text-slate-400 font-medium italic text-sm md:text-base">
+                  <span className="w-6 h-px bg-slate-200" />
+                  <Quote size={14} className="text-primary opacity-40" />
+                  <span className="line-clamp-2">{org.lema}</span>
                 </div>
               )}
            </div>
@@ -172,55 +195,72 @@ export default function OrganizacionDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8">
-            <div className="bg-white p-10 md:p-16 rounded-[3rem] shadow-sm border border-slate-200/60 relative overflow-hidden h-full">
-              <div className="flex items-center gap-4 mb-10">
+            <div className="bg-white p-6 md:p-8 rounded-[2.25rem] shadow-sm border border-slate-200/60 relative overflow-hidden h-full">
+              <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center border border-primary/10"><BookOpen size={22} /></div>
-                <div><h3 className="text-xl font-bold text-slate-800 tracking-tight uppercase">Reseña Histórica</h3><div className="h-1 w-8 bg-primary/30 rounded-full mt-1"></div></div>
-              </div>
-              <p className="text-slate-600 text-xl leading-[1.8] font-medium text-justify">{org.descripcion || "En proceso de actualización..."}</p>
-
-              {org.portadaUrl && (
-                <div className="mt-16 rounded-[2.5rem] overflow-hidden aspect-video bg-slate-100 relative group cursor-zoom-in border border-slate-200 shadow-inner" onClick={() => setSelectedImage(org.portadaUrl)}>
-                  <img src={org.portadaUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700" alt="" />
-                  <div className="absolute inset-0 bg-slate-900/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                     <div className="px-6 py-3 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 text-white font-bold text-[10px] uppercase tracking-[0.2em]">Visualizar Campus</div>
-                  </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-slate-800 tracking-[0.16em] uppercase">
+                    Reseña histórica
+                  </h3>
+                  <div className="h-1 w-8 bg-primary/30 rounded-full mt-1" />
                 </div>
-              )}
+              </div>
+              <p className="text-slate-600 text-sm md:text-[15px] leading-relaxed md:leading-7 font-normal text-justify">
+                {org.descripcion || 'En proceso de actualización...'}
+              </p>
             </div>
           </div>
 
           {/* SIDEBAR */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden border border-white/5 group">
+            <div className="bg-slate-900 rounded-[2.25rem] p-7 text-white shadow-2xl relative overflow-hidden border border-white/5 group">
               <School size={150} className="absolute -right-8 -bottom-8 text-white/3 -rotate-12" />
               <div className="relative z-10 space-y-8">
-                <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.3em]">Ficha de Datos</p>
+                <p className="text-[9px] font-bold text-white/30 uppercase tracking-[0.26em]">
+                  Ficha de datos
+                </p>
                 <div className="space-y-8">
                   {[
                     { label: 'Fundación', value: org.fechaCreacion ? new Date(org.fechaCreacion).getFullYear() : 'S/N', icon: Calendar, color: 'text-primary' },
                     { label: 'Ubicación', value: 'Tingo María, Perú', icon: MapPin, color: 'text-sky-400' },
                     { label: 'Estado', value: org.estaActivo ? 'Activa' : 'Inactiva', icon: Activity, color: 'text-emerald-400' }
                   ].map((item, i) => (
-                    <div key={i} className="flex gap-5 items-start">
-                      <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white shrink-0"><item.icon size={18} className={item.color} /></div>
-                      <div className="flex flex-col leading-tight"><span className="text-[9px] font-bold text-white/20 uppercase tracking-widest mb-1">{item.label}</span><span className="text-sm font-semibold text-white/90">{item.value}</span></div>
+                    <div key={i} className="flex gap-4 items-start">
+                      <div className="w-9 h-9 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white shrink-0">
+                        <item.icon size={16} className={item.color} />
+                      </div>
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-[9px] font-bold text-white/25 uppercase tracking-widest mb-1">
+                          {item.label}
+                        </span>
+                        <span className="text-xs font-semibold text-white/90">
+                          {item.value}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
-                <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-                   <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full border-2 border-white shadow-xl" style={{ backgroundColor: org.colorRepresentativo }}></div><span className="text-[10px] font-mono text-white/40 uppercase">{org.colorRepresentativo}</span></div>
-                   <ExternalLink size={16} className="text-white/20 hover:text-white cursor-pointer" />
+                <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                    <div
+                      className="w-4 h-4 rounded-full border-2 border-white shadow-xl"
+                      style={{ backgroundColor: org.colorRepresentativo }}
+                    />
+                    <span className="text-[9px] font-mono text-white/40 uppercase">
+                      {org.colorRepresentativo}
+                    </span>
+                  </div>
+                  <ExternalLink size={14} className="text-white/30 hover:text-white cursor-pointer" />
                 </div>
               </div>
             </div>
 
             {/* BOTONES DE ACCIÓN (MEJORADO) */}
-            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col gap-3">
+            <div className="bg-white p-6 rounded-[2.25rem] border border-slate-200 shadow-sm flex flex-col gap-3">
                {can('core.org.manage') && (
                  <button 
                   onClick={() => setIsModalOpen(true)}
-                  className="w-full py-4 bg-slate-50 hover:bg-primary hover:text-white rounded-2xl font-bold text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 border border-slate-100 group"
+                  className="w-full py-3 bg-slate-50 hover:bg-primary hover:text-white rounded-2xl font-semibold text-[10px] uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 border border-slate-100 group"
                  >
                     <Edit3 size={18} className="text-slate-400 group-hover:text-white" /> Editar Contenido
                  </button>
@@ -228,7 +268,7 @@ export default function OrganizacionDetail() {
                
                <button 
                 onClick={() => setIsShareOpen(true)}
-                className="w-full py-4 bg-white hover:bg-slate-50 rounded-2xl font-bold text-[11px] uppercase tracking-widest transition-all flex items-center justify-center gap-3 border border-slate-200"
+                className="w-full py-3 bg-white hover:bg-slate-50 rounded-2xl font-semibold text-[10px] uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2 border border-slate-200"
                >
                   <Share2 size={18} className="text-slate-400" /> Compartir Ficha
                </button>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import RichTextEditorNoticias from "../../components/common/RichTextEditorNoticias";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   createNoticia,
@@ -88,7 +89,10 @@ export default function NoticiasAdminForm() {
       nuevos.extracto = "El extracto es obligatorio";
     if (formData.extracto.length > 250)
       nuevos.extracto = "Máximo 250 caracteres";
-    if (!formData.contenido.trim())
+    if (
+      !formData.contenido ||
+      !formData.contenido.replace(/<[^>]+>/g, "").trim()
+    )
       nuevos.contenido = "El contenido es obligatorio";
     if (!formData.imagenPrincipal)
       nuevos.imagenPrincipal = "La imagen principal es obligatoria";
@@ -253,14 +257,9 @@ export default function NoticiasAdminForm() {
           <label className="text-sm font-semibold text-slate-800">
             Contenido *
           </label>
-          <textarea
+          <RichTextEditorNoticias
             value={formData.contenido}
-            onChange={(e) => handleChange("contenido", e.target.value)}
-            rows={8}
-            className={`w-full px-3 py-2 text-sm rounded-lg border resize-none font-mono ${
-              errores.contenido ? "border-red-500" : "border-slate-200"
-            } focus:outline-none focus:ring-2 focus:ring-primary/30`}
-            placeholder="Contenido completo del artículo..."
+            onChange={(html) => handleChange("contenido", html)}
           />
           {errores.contenido && (
             <p className="text-[11px] text-red-600">{errores.contenido}</p>
