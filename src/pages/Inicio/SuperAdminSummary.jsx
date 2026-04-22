@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Users,
   School,
@@ -7,23 +7,31 @@ import {
   Activity,
   ArrowRight,
   Clock,
+  Newspaper,
+  ExternalLink,
+  Calendar,
+  Globe,
+  Settings,
 } from "lucide-react";
 import api from "../../api/axiosConfig";
 import { useAuth } from "../../context/AuthContext";
-
+import {
+  tournamentPublicLabel,
+  tournamentPublicBadgeClass,
+} from "../../utils/tournamentPublicStatus";
+  
 export default function SuperAdminSummary() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedBlocks, setSelectedBlocks] = useState([]);
   const navigate = useNavigate();
-  const { can, user } = useAuth();
+  const { can } = useAuth();
 
   useEffect(() => {
     const controller = new AbortController();
 
     const fetchData = async () => {
       try {
-        // 1) Cargamos preferencias del usuario (qué widgets quiere ver)
         let blocks = "all";
         try {
           const prefRes = await api.get("/Preferences/my-config", {
@@ -45,11 +53,9 @@ export default function SuperAdminSummary() {
             setSelectedBlocks([]);
           }
         } catch {
-          // Si falla preferencias, usamos "all" y dejamos selectedBlocks vacío
           setSelectedBlocks([]);
         }
 
-        // 2) Llamamos al summary pasando los bloques elegidos
         const response = await api.get("/Dashboard/summary", {
           params: { blocks },
           signal: controller.signal,
@@ -87,96 +93,103 @@ export default function SuperAdminSummary() {
 
   const allWidgets = [
     {
-      id: 'usuarios',
-      permission: 'security.user.view',
-      title: 'Usuarios Totales',
+      id: "usuarios",
+      permission: "security.user.view",
+      title: "Usuarios Totales",
       value: stats?.totalUsuarios,
       icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-      path: '/PanelControl/usuarios',
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      path: "/PanelControl/usuarios",
     },
     {
-      id: 'orgs',
-      permission: 'core.org.view',
-      title: 'Facultades',
+      id: "orgs",
+      permission: "core.org.view",
+      title: "Facultades",
       value: stats?.totalFacultades,
       icon: School,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-      path: '/PanelControl/organizaciones',
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      path: "/PanelControl/organizaciones",
     },
     {
-      id: 'torneos',
-      permission: 'comp.tourn.view',
-      title: 'Torneos Activos',
+      id: "torneos",
+      permission: "tourn.view",
+      title: "Torneos",
       value: stats?.totalTorneos,
       icon: Trophy,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-      path: '/PanelControl/torneos',
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      path: "/PanelControl/torneos",
     },
     {
-      id: 'activos',
-      permission: 'security.user.view',
-      title: 'Sesiones Activas',
+      id: "activos",
+      permission: "security.user.view",
+      title: "Sesiones Activas",
       value: stats?.usuariosActivos,
       icon: Activity,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50',
+      color: "text-purple-600",
+      bg: "bg-purple-50",
       path: null,
     },
   ];
 
   const cards = allWidgets.filter((widget) => {
-    if (!can(widget.permission)) return false;
-    // Si no hay preferencias guardadas, mostramos todo lo permitido
+    const ok =
+      widget.id === "torneos"
+        ? can("comp.tourn.view") || can("tourn.view")
+        : can(widget.permission);
+    if (!ok) return false;
     if (!selectedBlocks || selectedBlocks.length === 0) return true;
     return selectedBlocks.includes(widget.id);
   });
 
   const showRecent =
-    !selectedBlocks || selectedBlocks.length === 0 || selectedBlocks.includes("recent");
+    !selectedBlocks ||
+    selectedBlocks.length === 0 ||
+    selectedBlocks.includes("recent");
+
+  const showBannerTorneos =
+    !selectedBlocks ||
+    selectedBlocks.length === 0 ||
+    selectedBlocks.includes("banner_torneos");
+
+  const torneosActivos = Array.isArray(stats?.torneosActivos)
+    ? stats.torneosActivos
+    : [];
+  const noticiasInicio = Array.isArray(stats?.noticiasInicio)
+    ? stats.noticiasInicio
+    : [];
+  const showNoticias =
+    can("news.view") &&
+    noticiasInicio.length > 0 &&
+    (!selectedBlocks ||
+      selectedBlocks.length === 0 ||
+      selectedBlocks.includes("noticias_1") ||
+      selectedBlocks.includes("noticias_3"));
+
+  const newsCols =
+    stats?.noticiasModo === 3 || noticiasInicio.length > 1
+      ? "md:grid-cols-3"
+      : "md:grid-cols-1";
+
+  const torneosGridCols =
+    torneosActivos.length >= 3
+      ? "md:grid-cols-3"
+      : torneosActivos.length === 2
+        ? "md:grid-cols-2"
+        : "md:grid-cols-1";
+
+  const torneosCardTitle = (() => {
+    const ctx = stats?.torneosMetricaContexto;
+    if (ctx === "planeamiento") return "En planeamiento";
+    if (ctx === "inscripciones_curso") return "Inscripciones / en curso";
+    if (ctx === "ninguno") return "Torneos";
+    return "Torneos activos";
+  })();
 
   return (
     <div className="space-y-10 animate-fade-in">
-      {/* Encabezado ejecutivo */}
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-8 py-7 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.25em] text-white/60 mb-1">
-            Panel ejecutivo
-          </p>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Resumen en tiempo real
-          </h2>
-          <p className="text-xs md:text-sm text-white/70 mt-2 max-w-xl">
-            Vista rápida del estado del sistema para{" "}
-            <span className="font-semibold">
-              {user?.nombreCompleto || "administrador"}
-            </span>
-            . Personaliza los bloques desde{" "}
-            <span className="underline decoration-primary/70 decoration-dashed">
-              Configuración &gt; Mi Dashboard
-            </span>
-            .
-          </p>
-        </div>
-        <div className="flex flex-col items-start md:items-end gap-2 text-xs">
-          <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 font-semibold uppercase tracking-[0.18em]">
-            {stats?.tipoVista?.toUpperCase() || "VISTA GLOBAL"}
-          </span>
-          {stats?.totalUsuarios != null && (
-            <span className="text-white/70">
-              Usuarios registrados:{" "}
-              <span className="font-semibold text-white">
-                {stats.totalUsuarios}
-              </span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Grid de tarjetas métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cards.map((card) => (
           <div
@@ -195,7 +208,7 @@ export default function SuperAdminSummary() {
               <card.icon size={22} />
             </div>
             <p className="relative text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              {card.title}
+              {card.id === "torneos" ? torneosCardTitle : card.title}
             </p>
             <h2 className="relative text-3xl font-bold text-slate-800 tracking-tight">
               {card.value ?? 0}
@@ -204,10 +217,21 @@ export default function SuperAdminSummary() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Actividad Reciente (solo si está habilitada en preferencias) */}
+      <div
+        className={`grid grid-cols-1 gap-8 ${
+          showRecent && showBannerTorneos
+            ? "lg:grid-cols-3"
+            : showRecent || showBannerTorneos
+              ? "lg:grid-cols-1"
+              : ""
+        }`}
+      >
         {showRecent && stats?.ultimosUsuarios && stats.ultimosUsuarios.length > 0 && (
-          <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div
+            className={`bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden ${
+              showBannerTorneos ? "lg:col-span-2" : "lg:col-span-1"
+            }`}
+          >
             <div className="px-8 py-5 border-b border-slate-50 flex justify-between items-center bg-slate-50/60">
               <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
                 <Clock size={16} className="text-slate-400" /> Actividad reciente
@@ -231,11 +255,9 @@ export default function SuperAdminSummary() {
                       {u?.charAt(0)}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-700">
-                        {u}
-                      </span>
+                      <span className="text-sm font-bold text-slate-700">{u}</span>
                       <span className="text-[10px] text-slate-400 font-medium">
-                        Nuevo registro en el sistema
+                        Registro reciente
                       </span>
                     </div>
                   </div>
@@ -246,32 +268,190 @@ export default function SuperAdminSummary() {
           </div>
         )}
 
-        {/* Banner lateral (siempre visible) */}
-        <div className="bg-primary p-8 rounded-3xl text-white relative overflow-hidden flex flex-col justify-between">
-          <Trophy
-            size={64}
-            className="absolute -right-4 -top-4 text-white/10 rotate-12"
-          />
-          <div className="relative z-10">
-            <span className="bg-white/20 text-[9px] font-bold px-2 py-1 rounded mb-4 inline-block uppercase tracking-widest">
-              Aviso OTI
-            </span>
-            <h4 className="text-xl font-bold leading-tight mb-2">
-              Interfacultades 2026
-            </h4>
-            <p className="text-white/75 text-sm leading-relaxed">
-              Las inscripciones están próximas a abrirse. Revisa los reglamentos
-              actualizados y prepara a tus equipos.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="mt-8 bg-white text-primary text-[11px] font-bold py-3 rounded-xl uppercase tracking-widest hover:bg-accent hover:text-accent-foreground transition-all"
+        {showBannerTorneos && (
+          <div
+            className={`${
+              showRecent ? "" : "lg:col-span-1"
+            } ${!showRecent ? "lg:max-w-4xl" : ""}`}
           >
-            Ver calendario
-          </button>
-        </div>
+            <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col h-full">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Trophy size={18} className="text-amber-600" />
+                    Torneos
+                    <span className="text-xs font-normal text-slate-500">
+                      · Últimos registrados
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-md">
+                    Hasta tres torneos, mismo criterio que la vitrina pública.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <Link
+                    to="/PanelControl/torneos"
+                    className="text-xs font-bold text-emerald-700 hover:underline inline-flex items-center gap-1"
+                  >
+                    Ver todos los torneos
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                  <Link
+                    to="/calendario"
+                    className="text-xs font-bold text-slate-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    Ver calendario
+                  </Link>
+                </div>
+              </div>
+
+              {torneosActivos.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
+                    <Trophy className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm text-slate-600 font-medium">
+                    Aún no hay torneos publicados en el sistema.
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Creá uno desde el panel o revisá la visibilidad (IsActive).
+                  </p>
+                </div>
+              ) : (
+                <div
+                  className={`p-4 md:p-5 grid grid-cols-1 gap-3 ${torneosGridCols}`}
+                >
+                  {torneosActivos.map((t) => {
+                    const id = t.id ?? t.Id;
+                    const name = t.name ?? t.Name ?? "—";
+                    const st = t.status ?? t.Status;
+                    const year = t.year ?? t.Year;
+                    const publicUrl = `/torneos/torneo/${id}`;
+                    const panelUrl = `/PanelControl/torneos/${id}`;
+                    return (
+                      <div
+                        key={id}
+                        className="rounded-2xl border border-slate-100 bg-white hover:border-slate-200/90 hover:shadow-sm transition-all flex flex-wrap sm:flex-nowrap gap-3 p-3.5 items-center"
+                      >
+                        <div className="shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-slate-50 border border-amber-100/80 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                          <Trophy
+                            className="w-5 h-5 text-amber-600"
+                            strokeWidth={2}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1 flex flex-col gap-1">
+                          <span
+                            className={`inline-flex w-fit text-[10px] font-bold px-2 py-0.5 rounded-full border ${tournamentPublicBadgeClass(st)}`}
+                          >
+                            {tournamentPublicLabel(st)}
+                          </span>
+                          <p className="font-bold text-slate-900 text-sm leading-snug line-clamp-2">
+                            {name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+                            Temporada {year}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end sm:justify-start pl-14 sm:pl-0 border-t border-slate-100 pt-3 sm:border-0 sm:pt-0">
+                          <Link
+                            to={publicUrl}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60 hover:text-emerald-800 transition-colors"
+                            title="Ver cómo se ve en la web pública"
+                          >
+                            <Globe className="w-3.5 h-3.5 shrink-0" />
+                            Pública
+                          </Link>
+                          <Link
+                            to={panelUrl}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-amber-300 hover:bg-amber-50/50 hover:text-amber-900 transition-colors"
+                            title="Gestionar y editar en el panel"
+                          >
+                            <Settings className="w-3.5 h-3.5 shrink-0" />
+                            Panel
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </div>
+
+      {showNoticias && (
+        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <Newspaper size={18} className="text-emerald-600" />
+              Noticias
+              {stats?.noticiasModo === 3 ? (
+                <span className="text-xs font-normal text-slate-500">
+                  · Últimas 3 publicadas
+                </span>
+              ) : (
+                <span className="text-xs font-normal text-slate-500">
+                  · Última publicada
+                </span>
+              )}
+            </h3>
+            <Link
+              to="/noticias"
+              className="text-xs font-bold text-emerald-700 hover:underline inline-flex items-center gap-1"
+            >
+              Ver todas
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className={`p-6 grid grid-cols-1 gap-4 ${newsCols}`}>
+            {noticiasInicio.map((n) => {
+              const slug = n.slug ?? n.Slug;
+              const title = n.title ?? n.Title;
+              const excerpt = n.excerpt ?? n.Excerpt ?? "";
+              const created = n.createdAt ?? n.CreatedAt;
+              const img = n.imageUrl ?? n.ImageUrl;
+              return (
+                <Link
+                  key={n.id ?? n.Id}
+                  to={slug ? `/noticia/${slug}` : "/noticias"}
+                  className="group rounded-2xl border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all overflow-hidden flex flex-col bg-slate-50/50"
+                >
+                  {img ? (
+                    <div className="aspect-[16/9] bg-slate-200 overflow-hidden">
+                      <img
+                        src={img}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="p-4 flex-1 flex flex-col">
+                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
+                      {created
+                        ? new Date(created).toLocaleDateString("es-PE", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : ""}
+                    </p>
+                    <p className="font-bold text-slate-900 mt-1 line-clamp-2 group-hover:text-emerald-800">
+                      {title}
+                    </p>
+                    {excerpt ? (
+                      <p className="text-xs text-slate-600 mt-2 line-clamp-3 flex-1">
+                        {excerpt}
+                      </p>
+                    ) : null}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

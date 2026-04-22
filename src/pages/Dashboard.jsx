@@ -12,6 +12,10 @@ import {
   Newspaper,
   Menu,
   X,
+  Layers,
+  Shirt,
+  UserPlus,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -36,6 +40,12 @@ export default function Dashboard() {
   // 2. Definición de Menú (Asegúrate de que 'can' esté funcionando con los permisos de la DB)
   const menuItems = [
     { title: "Inicio", path: "/PanelControl", icon: LayoutDashboard, visible: true },
+    {
+      title: "Gestión de equipos",
+      path: "/PanelControl/gestion-equipos",
+      icon: UserPlus,
+      visible: can("tourn.team.manage"),
+    },
     { title: "Usuarios UNAS", path: "/PanelControl/usuarios", icon: Users, visible: can("security.user.view") },
     {
       title: "Facultades",
@@ -49,7 +59,38 @@ export default function Dashboard() {
       icon: Newspaper,
       visible: can("news.view"),
     },
-    { title: "Torneos Activos", path: "/PanelControl/torneos", icon: Trophy, visible: can("comp.tourn.view") },
+    {
+      title: "Torneos Activos",
+      path: "/PanelControl/torneos",
+      icon: Trophy,
+      visible:
+        can("comp.tourn.view") ||
+        can("tourn.view") ||
+        can("tourn.manage") ||
+        can("tourn.team.manage") ||
+        can("tourn.match.control"),
+    },
+    {
+      title: "Equipos y planteles",
+      path: "/PanelControl/torneos/equipos",
+      icon: Shirt,
+      visible: can("tourn.manage"),
+    },
+    {
+      title: "Sedes y canchas",
+      path: "/PanelControl/torneos/sedes",
+      icon: MapPin,
+      visible: can("tourn.manage"),
+    },
+    {
+      title: "Disciplinas",
+      path: "/PanelControl/disciplinas",
+      icon: Layers,
+      visible:
+        can("tourn.view") ||
+        can("tourn.manage") ||
+        can("tourn.team.manage"),
+    },
     { title: "Configuración", path: "/PanelControl/configuracion", icon: Settings, visible: can("security.role.manage") },
   ];
 
@@ -57,13 +98,41 @@ export default function Dashboard() {
 
   // 3. Mapeo de Títulos (Más limpio que ternarios)
   const roleTitles = {
-    'SUPERADMIN': 'Panel de Control OTI',
-    'ADMIN': 'Panel de Control OTI',
-    'ENCARGADO': 'Gestión de Facultad',
-    'ESTUDIANTE': 'Portal del Estudiante'
+    SUPERADMIN: "Panel de Control",
+    ADMIN: "Panel de Control",
+    ENCARGADO: "Gestión de Facultad",
+    ESTUDIANTE: "Portal del Estudiante",
+    DELEGADO_ESCUELA: "Delegado de escuela — Torneos",
+    DELEGADO: "Delegado de escuela — Torneos",
   };
   
   const dashboardTitle = roleTitles[user?.rol?.toUpperCase()] || 'Portal SIGED';
+
+  /** Título y subtítulo según la ruta: el banner refleja el módulo actual (menos repetición con la página). */
+  const pathNorm = location.pathname.replace(/\/$/, "") || "/PanelControl";
+  const firstSeg = pathNorm.startsWith("/PanelControl")
+    ? pathNorm.slice("/PanelControl".length).replace(/^\//, "").split("/")[0]
+    : "";
+  const moduleByRoute = {
+    usuarios: { title: "Usuarios UNAS", subtitle: "Cuentas y permisos de acceso." },
+    organizaciones: { title: "Facultades", subtitle: "Organizaciones y sedes." },
+    noticias: { title: "Noticias", subtitle: "Comunicación institucional." },
+    "gestion-equipos": {
+      title: "Gestión de equipos",
+      subtitle:
+        "Inscribí equipos en torneos y administrá jugadores desde el panel.",
+    },
+    torneos: { title: "Torneos", subtitle: "Torneos y competencias." },
+    disciplinas: { title: "Disciplinas", subtitle: "Catálogo deportivo y reglas maestras." },
+    configuracion: { title: "Configuración", subtitle: "Roles, permisos y preferencias del panel." },
+  };
+  const moduleInfo = firstSeg ? moduleByRoute[firstSeg] : null;
+  const isPanelHome = pathNorm === "/PanelControl" || pathNorm === "";
+  const headerMainTitle = isPanelHome || !moduleInfo ? dashboardTitle : moduleInfo.title;
+  const headerSubtitle = isPanelHome
+    ? null
+    : moduleInfo?.subtitle ?? null;
+  const canOpenConfig = can("security.role.manage");
 
   return (
     <div className="relative flex min-h-[calc(100vh-64px)] bg-[#f8fafc] font-inter text-slate-900">
@@ -129,9 +198,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* --- SIDEBAR DESKTOP --- */}
-      <aside className="hidden md:flex w-64 bg-slate-900 text-slate-100 flex-col sticky top-16 h-[calc(100vh-64px)] z-10 border-r border-slate-800">
-        <div className="p-6 flex-1">
+      {/* --- SIDEBAR DESKTOP ---
+          Solo altura natural + sticky (sin h=100vh): si no, el pie del sidebar queda
+          fijo abajo del viewport y se superpone al <Footer> global al hacer scroll. */}
+      <aside className="hidden md:flex w-64 shrink-0 bg-slate-900 text-slate-100 flex-col self-start sticky top-16 max-h-[calc(100vh-4rem)] overflow-hidden z-[1] border-r border-slate-800">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.26em] mb-6 pl-2">
             Administración
           </p>
@@ -169,18 +240,18 @@ export default function Dashboard() {
           </nav>
         </div>
 
-        {/* Footer del Sidebar */}
-        <div className="p-6 border-t border-slate-800 bg-slate-950/60">
+        {/* Bloque contextual (no anclado al borde inferior de la ventana) */}
+        <div className="p-6 border-t border-slate-800 bg-slate-950/60 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-300 border border-emerald-400/40">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-300 border border-emerald-400/40 shrink-0">
               <Activity size={16} />
             </div>
-            <div className="flex flex-col overflow-hidden">
+            <div className="flex flex-col min-w-0">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
                 Organización
               </span>
               <span
-                className="text-[11px] font-semibold text-slate-100 truncate"
+                className="text-[11px] font-semibold text-slate-100 break-words"
                 title={user?.nombreOrganizacion || "Sede Central"}
               >
                 {user?.nombreOrganizacion || "Sede Central"}
@@ -193,35 +264,61 @@ export default function Dashboard() {
       {/* --- CONTENIDO PRINCIPAL --- */}
       <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <div className="max-w-5xl mx-auto">
-          <header className="mb-6 md:mb-10">
-            <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-600 px-5 py-4 md:px-8 md:py-6 shadow-[0_20px_60px_rgba(15,23,42,0.55)] border border-slate-800/60 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-              <div>
+          <header className="mb-5 md:mb-8">
+            <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-900 to-emerald-800 px-4 py-4 md:px-6 md:py-5 shadow-lg shadow-slate-900/20 border border-slate-700/50 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+              <div className="min-w-0">
                 {/* Botón para abrir sidebar en mobile */}
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(true)}
-                  className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-100 md:hidden"
+                  className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-400/50 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-100 md:hidden"
                 >
                   <Menu size={14} />
                   Menú del panel
                 </button>
 
-                <div className="flex items-center gap-2 text-emerald-200/80 mb-1">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.28em]">
-                    Panel Principal
+                <div className="flex items-center gap-2 text-emerald-200/70 mb-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.24em]">
+                    Panel principal
                   </span>
-                  <ChevronRight size={11} className="text-emerald-300" />
-                  <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-emerald-100">
-                    {menuItems.find(i => isActive(i.path))?.title || 'Inicio'}
+                  <ChevronRight size={11} className="text-emerald-400/80 shrink-0" />
+                  <span className="text-[9px] font-bold uppercase tracking-[0.24em] text-emerald-100 truncate">
+                    {menuItems.find(i => isActive(i.path))?.title || "Inicio"}
                   </span>
                 </div>
-                <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">
-                  {dashboardTitle}
+                <h1 className="text-xl md:text-2xl font-semibold text-white tracking-tight">
+                  {headerMainTitle}
                 </h1>
-                <p className="mt-1 text-[11px] text-slate-200/80 max-w-xl">
-                  Vista ejecutiva del entorno SIGED. Personaliza tu panel desde{' '}
-                  <span className="font-semibold">Configuración &gt; Mi Dashboard</span>.
-                </p>
+                {!isPanelHome && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium uppercase tracking-wide">
+                    {dashboardTitle}
+                  </p>
+                )}
+                {headerSubtitle && (
+                  <p className="mt-2 text-xs text-slate-300/90 max-w-xl leading-relaxed">
+                    {headerSubtitle}
+                  </p>
+                )}
+                {isPanelHome && (
+                  <p className="mt-2 text-[11px] text-slate-300/85 max-w-xl leading-relaxed">
+                    Resumen de tu entorno SIGED.
+                    {canOpenConfig ? (
+                      <>
+                        {" "}
+                        Personalizá widgets en{" "}
+                        <Link
+                          to="/PanelControl/configuracion#preferencias-dashboard"
+                          className="font-semibold text-emerald-300 hover:text-emerald-200 underline decoration-emerald-500/50 underline-offset-2"
+                        >
+                          Configuración → Preferencias de dashboard
+                        </Link>
+                        .
+                      </>
+                    ) : (
+                      <> Contactá a un administrador si necesitás cambios de permisos.</>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
           </header>

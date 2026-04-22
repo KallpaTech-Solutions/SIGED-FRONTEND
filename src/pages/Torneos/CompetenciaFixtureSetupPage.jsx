@@ -1,0 +1,512 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import {
+  AlertCircle,
+  ChevronLeft,
+  LayoutGrid,
+  Loader2,
+  Shuffle,
+  Trophy,
+  Users,
+} from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
+import {
+  fetchCompetitionAdminById,
+  fetchPhasesByCompetition,
+  fetchTournamentById,
+  setupCompetitionFormat,
+} from "../../api/tournamentsAdminService";
+import { fetchCompetitionPublicDashboard } from "../../api/tournamentsPublicService";
+import CompetitionDashboard from "../../components/tournaments/CompetitionDashboard";
+import { genderLabel } from "../../utils/tournamentEnums";
+
+/** Vista previa de tamaños de grupo (misma lógica que el backend). */
+function previewGroupSizes(totalTeams, maxPerGroup) {
+  if (totalTeams < 2 || maxPerGroup < 2) return [];
+  const g = Math.ceil(totalTeams / maxPerGroup);
+  const q = Math.floor(totalTeams / g);
+  const r = totalTeams % g;
+  const sizes = [];
+  for (let i = 0; i < g; i += 1) sizes.push(q + (i < r ? 1 : 0));
+  return sizes;
+}
+
+function normTeamIds(competition) {
+  const rows =
+    competition?.competitionTeams ?? competition?.CompetitionTeams ?? [];
+  if (!Array.isArray(rows)) return [];
+  const ids = [];
+  for (const ct of rows) {
+    const team = ct.team ?? ct.Team;
+    const tid = team?.id ?? team?.Id ?? ct.teamId ?? ct.TeamId;
+    const active = team?.isActive ?? team?.IsActive ?? true;
+    if (tid && active) ids.push(String(tid));
+  }
+  return [...new Set(ids)];
+}
+
+export default function CompetenciaFixtureSetupPage() {
+  const { tournamentId, competitionId } = useParams();
+  const { can } = useAuth();
+  const { toast } = useToast();
+  const canFixtureSetup =
+    can("tourn.manage") || can("tourn.config") || can("tourn.fixture");
+
+  const [loading, setLoading] = useState(true);
+  const [competition, setCompetition] = useState(null);
+  const [tournamentName, setTournamentName] = useState("");
+  const [phases, setPhases] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [mode, setMode] = useState("groups"); // groups | knockout
+  const [maxTeamsPerGroup, setMaxTeamsPerGroup] = useState(4);
+  const [shuffleTeams, setShuffleTeams] = useState(true);
+  const [qualifiedPerGroup, setQualifiedPerGroup] = useState(2);
+  const [groupPhaseName, setGroupPhaseName] = useState("Fase de grupos");
+  const [autoRR, setAutoRR] = useState(true);
+  const [knockoutPhaseName, setKnockoutPhaseName] = useState("Eliminatoria");
+  const [knockoutRandom, setKnockoutRandom] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!competitionId || !tournamentId) return;
+    setLoading(true);
+    try {
+      const [comp, tourn, ph] = await Promise.all([
+        fetchCompetitionAdminById(competitionId),
+        fetchTournamentById(tournamentId),
+        fetchPhasesByCompetition(competitionId),
+      ]);
+      setCompetition(comp);
+      setTournamentName(tourn?.name ?? tourn?.Name ?? "");
+      setPhases(Array.isArray(ph) ? ph : []);
+    } catch (e) {
+      toast(
+        e?.response?.data?.message ||
+          "No se pudo cargar la competencia.",
+        "error"
+      );
+      setCompetition(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [competitionId, tournamentId, toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!competitionId || phases.length === 0) {
+      setDashboard(null);
+      setDashboardLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setDashboardLoading(true);
+    (async () => {
+      try {
+        const dash = await fetchCompetitionPublicDashboard(competitionId);
+        if (!cancelled) setDashboard(dash);
+      } catch {
+        if (!cancelled) setDashboard(null);
+      } finally {
+        if (!cancelled) setDashboardLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [competitionId, phases]);
+
+  const teamIds = useMemo(
+    () => (competition ? normTeamIds(competition) : []),
+    [competition]
+  );
+  const teamCount = teamIds.length;
+
+  const sizesPreview = useMemo(
+    () => previewGroupSizes(teamCount, maxTeamsPerGroup),
+    [teamCount, maxTeamsPerGroup]
+  );
+
+  const title = useMemo(() => {
+    if (!competition) return "Competencia";
+    const d =
+      competition.discipline ?? competition.Discipline ?? {};
+    const dname = d.name ?? d.Name ?? "—";
+    const cat = competition.categoryName ?? competition.CategoryName;
+    return cat ? `${dname} · ${cat}` : dname;
+  }, [competition]);
+
+  const gender = competition?.gender ?? competition?.Gender;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!canFixtureSetup || !competitionId || teamCount < 2) return;
+    if (phases.length > 0) {
+      toast("Esta competencia ya tiene fases. No se puede volver a armar desde cero aquí.", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body =
+        mode === "knockout"
+          ? {
+              mode: 1,
+              teamIds,
+              knockoutPhaseName: knockoutPhaseName.trim() || "Eliminatoria",
+              knockoutRandomSeed: knockoutRandom,
+            }
+          : {
+              mode: 0,
+              teamIds,
+              maxTeamsPerGroup: Number(maxTeamsPerGroup),
+              shuffleTeams,
+              qualifiedPerGroup: Number(qualifiedPerGroup),
+              groupPhaseName: groupPhaseName.trim() || "Fase de grupos",
+              autoGenerateRoundRobinFixtures: autoRR,
+            };
+      const result = await setupCompetitionFormat(competitionId, body);
+      const msgs = result?.messages ?? result?.Messages;
+      if (Array.isArray(msgs) && msgs.length) {
+        toast(msgs.map((m) => String(m)).join(" · "), "success");
+      } else {
+        toast("Formato y fixture generados correctamente.", "success");
+      }
+      await load();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        "No se pudo generar el fixture.";
+      toast(typeof msg === "string" ? msg : "Error al guardar.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!canFixtureSetup) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-amber-900 text-sm">
+        No tenés permiso para configurar grupos o fixture (se requiere gestión de torneo,
+        configuración de fases o fixture).
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-3 py-24 text-slate-500">
+        <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
+        <span className="text-sm font-semibold">Cargando competencia…</span>
+      </div>
+    );
+  }
+
+  if (!competition) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-6 text-red-800 text-sm">
+        No se encontró la competencia.
+        <Link
+          to={`/PanelControl/torneos/${tournamentId}`}
+          className="block mt-3 font-bold text-emerald-800 underline"
+        >
+          Volver al torneo
+        </Link>
+      </div>
+    );
+  }
+
+  const hasPhases = phases.length > 0;
+
+  return (
+    <div className="space-y-8 font-inter pb-10">
+      <div className="max-w-2xl mx-auto space-y-6">
+      <Link
+        to={`/PanelControl/torneos/${tournamentId}`}
+        className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:underline"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Volver a {tournamentName || "torneo"}
+      </Link>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+            <LayoutGrid className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Configuración de formato
+            </p>
+            <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              {genderLabel(gender)} ·{" "}
+              <span className="font-semibold text-slate-800">
+                {teamCount} equipo{teamCount === 1 ? "" : "s"} inscripto
+                {teamCount === 1 ? "" : "s"}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {teamCount < 2 && (
+          <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 text-sm mb-4">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <p>
+              Hacen falta al menos <strong>2 equipos inscriptos</strong> para
+              generar el fixture. Inscribí equipos desde la vitrina o el panel
+              de delegados.
+            </p>
+          </div>
+        )}
+
+        {hasPhases && (
+          <div className="flex gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm mb-4">
+            <Trophy className="w-5 h-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="font-semibold">Esta competencia ya tiene fases</p>
+              <p className="text-xs text-slate-600 mt-1">
+                El armado automático no se puede repetir desde aquí. Debajo tenés
+                grupos, tablas y llaves tal como quedaron. También podés abrir la{" "}
+                <Link
+                  to={`/torneos/${competitionId}`}
+                  className="font-bold text-emerald-700 underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  vitrina pública
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <fieldset className="space-y-3">
+            <legend className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+              Modalidad
+            </legend>
+            <label className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/50">
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === "groups"}
+                onChange={() => setMode("groups")}
+                className="mt-1"
+                disabled={hasPhases || teamCount < 2}
+              />
+              <div>
+                <p className="font-bold text-slate-900">Fase de grupos (todos contra todos)</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Reparto equilibrado en Grupo A, B, C… (ej. 15 equipos y máx. 4
+                  por grupo → 4+4+4+3). Podés sortear equipos y definir cuántos
+                  pasan por grupo.
+                </p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/50">
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === "knockout"}
+                onChange={() => setMode("knockout")}
+                className="mt-1"
+                disabled={hasPhases || teamCount < 2}
+              />
+              <div>
+                <p className="font-bold text-slate-900">Eliminación directa</p>
+                <p className="text-xs text-slate-600 mt-1">
+                  Llave desde el inicio con todos los equipos. Sorteo aleatorio
+                  o orden manual según la lista actual de inscriptos.
+                </p>
+              </div>
+            </label>
+          </fieldset>
+
+          {mode === "groups" && teamCount >= 2 && (
+            <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                    Máximo de equipos por grupo
+                  </label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={32}
+                    value={maxTeamsPerGroup}
+                    onChange={(e) =>
+                      setMaxTeamsPerGroup(
+                        Math.max(2, Math.min(32, Number(e.target.value) || 2))
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    disabled={hasPhases}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                    Clasificados por grupo
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={32}
+                    value={qualifiedPerGroup}
+                    onChange={(e) =>
+                      setQualifiedPerGroup(
+                        Math.max(1, Math.min(32, Number(e.target.value) || 1))
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    disabled={hasPhases}
+                  />
+                </div>
+              </div>
+              {sizesPreview.length > 0 && (
+                <p className="text-xs text-slate-700">
+                  <span className="font-semibold">Vista previa:</span>{" "}
+                  {sizesPreview.length} grupo
+                  {sizesPreview.length === 1 ? "" : "s"} con tamaños{" "}
+                  <span className="font-mono">
+                    {sizesPreview.join(" + ")}
+                  </span>{" "}
+                  (total {teamCount} equipos).
+                </p>
+              )}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                  Nombre de la fase
+                </label>
+                <input
+                  type="text"
+                  value={groupPhaseName}
+                  onChange={(e) => setGroupPhaseName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  disabled={hasPhases}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shuffleTeams}
+                  onChange={(e) => setShuffleTeams(e.target.checked)}
+                  disabled={hasPhases}
+                />
+                <Shuffle className="w-4 h-4 text-slate-500" />
+                Sortear equipos al azar antes de armar grupos
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoRR}
+                  onChange={(e) => setAutoRR(e.target.checked)}
+                  disabled={hasPhases}
+                />
+                Generar fixture round robin (Berger) en cada grupo al guardar
+              </label>
+            </div>
+          )}
+
+          {mode === "knockout" && teamCount >= 2 && (
+            <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                  Nombre de la fase eliminatoria
+                </label>
+                <input
+                  type="text"
+                  value={knockoutPhaseName}
+                  onChange={(e) => setKnockoutPhaseName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  disabled={hasPhases}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={knockoutRandom}
+                  onChange={(e) => setKnockoutRandom(e.target.checked)}
+                  disabled={hasPhases}
+                />
+                Cruces aleatorios (si no, se respeta el orden de la lista de
+                inscriptos)
+              </label>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={
+                submitting || hasPhases || teamCount < 2
+              }
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Users className="w-4 h-4" />
+              )}
+              {submitting ? "Generando…" : "Generar formato y fixture"}
+            </button>
+            <Link
+              to={`/torneos/${competitionId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Ver vitrina pública
+            </Link>
+          </div>
+        </form>
+      </div>
+      </div>
+
+      {hasPhases && (
+        <div className="max-w-5xl mx-auto px-4 space-y-4 w-full">
+          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide border-b border-slate-200 pb-2">
+            Grupos y llaves
+          </h2>
+          {dashboardLoading && (
+            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 flex flex-wrap items-center gap-3 text-slate-600 text-sm">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-slate-800">
+                  Cargando fases, tablas y llave…
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Misma información que en la vitrina pública.
+                </p>
+              </div>
+            </div>
+          )}
+          {!dashboardLoading && dashboard && (
+            <CompetitionDashboard dashboard={dashboard} />
+          )}
+          {!dashboardLoading && !dashboard && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 text-sm">
+              No se pudo cargar el tablero de la competencia. Probá recargar la
+              página o abrir la{" "}
+              <Link
+                to={`/torneos/${competitionId}`}
+                className="font-bold underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                vitrina pública
+              </Link>
+              .
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

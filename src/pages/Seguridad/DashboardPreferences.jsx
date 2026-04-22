@@ -3,18 +3,28 @@ import { Save, CheckCircle2, Circle } from "lucide-react";
 import api from "../../api/axiosConfig";
 import { useToast } from "../../context/ToastContext";
 
+const OPTIONS = [
+  { id: "usuarios", label: "Usuarios totales", icon: "👥" },
+  { id: "orgs", label: "Facultades / sedes", icon: "🏫" },
+  {
+    id: "torneos",
+    label: "Torneos: número (inscripciones/en curso; si no hay, planeamiento)",
+    icon: "🏆",
+  },
+  { id: "activos", label: "Sesiones activas", icon: "⚡" },
+  { id: "recent", label: "Actividad reciente", icon: "🕒" },
+  { id: "banner_torneos", label: "Tarjeta: últimos 3 torneos", icon: "🎯" },
+  { id: "noticias_1", label: "Noticias: última publicada", icon: "📰" },
+  { id: "noticias_3", label: "Noticias: últimas 3 publicadas", icon: "📋" },
+];
+
+const DEFAULT_IDS = OPTIONS.map((o) => o.id);
+
 export default function DashboardPreferences() {
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-
-  const options = [
-    { id: "usuarios", label: "Usuarios Totales", icon: "👥" },
-    { id: "orgs", label: "Facultades / Sedes", icon: "🏫" },
-    { id: "activos", label: "Sesiones Activas", icon: "⚡" },
-    { id: "recent", label: "Actividad Reciente", icon: "🕒" },
-  ];
 
   useEffect(() => {
     const fetchPrefs = async () => {
@@ -22,21 +32,22 @@ export default function DashboardPreferences() {
         const res = await api.get("/Preferences/my-config");
         const raw = res.data?.widgetsVisibles;
         if (typeof raw === "string" && raw.trim().length > 0) {
-          setSelected(
-            raw
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-          );
+          const parsed = raw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (parsed.length > 0) {
+            setSelected(parsed);
+          } else {
+            setSelected([...DEFAULT_IDS]);
+          }
         } else {
-          // Si no hay nada guardado, mostramos todos por defecto
-          setSelected(options.map((o) => o.id));
+          setSelected([...DEFAULT_IDS]);
         }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error("Error cargando preferencias de dashboard:", err);
-        // Fallback: todos activos
-        setSelected(options.map((o) => o.id));
+        setSelected([...DEFAULT_IDS]);
       } finally {
         setLoading(false);
       }
@@ -46,8 +57,22 @@ export default function DashboardPreferences() {
   }, []);
 
   const handleToggle = (id) => {
+    if (id === "noticias_1") {
+      setSelected((prev) => {
+        const base = prev.filter((i) => i !== "noticias_3");
+        return base.includes(id) ? base.filter((i) => i !== id) : [...base, id];
+      });
+      return;
+    }
+    if (id === "noticias_3") {
+      setSelected((prev) => {
+        const base = prev.filter((i) => i !== "noticias_1");
+        return base.includes(id) ? base.filter((i) => i !== id) : [...base, id];
+      });
+      return;
+    }
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
@@ -77,17 +102,17 @@ export default function DashboardPreferences() {
             Panel Maestro · Preferencias
           </p>
           <h2 className="text-lg font-bold tracking-tight text-white">
-            Qué quieres ver en tu inicio
+            Qué querés ver en tu inicio
           </h2>
           <p className="text-[11px] text-slate-400 mt-1 max-w-xl">
-            Activa o desactiva los bloques del resumen ejecutivo de tu dashboard. Tus
-            elecciones se guardan solo para tu cuenta.
+            Activá o desactivá bloques del resumen. Las noticias: elegí solo una opción (última o
+            tres). Los cambios son solo para tu cuenta.
           </p>
         </div>
       </header>
 
       <div className="space-y-2">
-        {options.map((opt) => {
+        {OPTIONS.map((opt) => {
           const isActive = selected.includes(opt.id);
           return (
             <button
@@ -100,16 +125,16 @@ export default function DashboardPreferences() {
                   : "border-slate-700 bg-slate-900/70 hover:border-slate-500"
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{opt.icon}</span>
+              <div className="flex items-center gap-3 text-left">
+                <span className="text-xl shrink-0">{opt.icon}</span>
                 <span className="font-semibold text-sm text-slate-100">
                   {opt.label}
                 </span>
               </div>
               {isActive ? (
-                <CheckCircle2 className="text-emerald-400" />
+                <CheckCircle2 className="text-emerald-400 shrink-0" />
               ) : (
-                <Circle className="text-slate-600" />
+                <Circle className="text-slate-600 shrink-0" />
               )}
             </button>
           );
@@ -128,4 +153,3 @@ export default function DashboardPreferences() {
     </div>
   );
 }
-

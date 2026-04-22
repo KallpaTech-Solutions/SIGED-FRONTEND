@@ -16,7 +16,7 @@ const WHATSAPP_URL = "https://wa.me/51951907810";
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-950 border-t border-slate-800 pt-12 pb-8 font-inter text-slate-200">
+    <footer className="relative z-10 bg-slate-950 border-t border-slate-800 pt-12 pb-8 font-inter text-slate-200">
       <div className="container mx-auto px-6 md:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
           

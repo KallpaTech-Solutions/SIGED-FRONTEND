@@ -33,22 +33,24 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
         if (editarUsuario) {
           const resUser = await api.get(`/Usuarios/${editarUsuario.id}`);
           const u = resUser.data;
+          const det = u.persona?.detalles || u.persona?.Detalles || {};
           // Intentamos mapear el rol por nombre si coincide con los roles reales,
           // de lo contrario mantenemos el mapeo numérico existente.
           const rolEncontrado = (resRoles.data || []).find(r => r.nombre === u.rol);
           const rolIdInicial = rolEncontrado ? rolEncontrado.id : (u.rol === 'SuperAdmin' ? 1 : u.rol === 'Admin' ? 2 : u.rol === 'Encargado' ? 3 : 4);
 
+          const orgIdRaw = u.organizacion?.id ?? u.organizacion?.Id;
           setFormData({
             dni: u.persona?.dni || '',
             nombres: u.persona?.nombres || '',
             apellidos: u.persona?.apellidos || '',
             correo: u.persona?.correo || '',
             rolId: rolIdInicial,
-            organizacionId: u.organizacion?.id || '',
-            cargo: u.persona?.cargo || '', 
-            oficina: u.persona?.oficina || '', 
-            codigoEstudiante: u.persona?.codigoEstudiante || '',
-            estaMatriculado: u.persona?.estaMatriculado || false
+            organizacionId: orgIdRaw != null && orgIdRaw !== '' ? String(orgIdRaw) : '',
+            cargo: det.cargo ?? det.Cargo ?? '',
+            oficina: det.oficina ?? det.Oficina ?? '',
+            codigoEstudiante: det.codigoEstudiante ?? det.CodigoEstudiante ?? '',
+            estaMatriculado: det.estaMatriculado ?? det.EstaMatriculado ?? false
           });
 
           // Cargamos vista previa de permisos del rol

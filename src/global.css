@@ -185,4 +185,18 @@
   .animate-scale-in {
     animation: scale-in 0.3s cubic-bezier(0.23, 1, 0.320, 1);
   }
+
+  /* Vitrina torneos — brillo tipo broadcast */
+  @keyframes hub-shimmer {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(220%);
+    }
+  }
+
+  .animate-hub-shimmer {
+    animation: hub-shimmer 2.8s ease-in-out infinite;
+  }
 }

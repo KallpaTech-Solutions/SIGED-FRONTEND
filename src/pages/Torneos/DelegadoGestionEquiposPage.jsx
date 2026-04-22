@@ -1,0 +1,995 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Loader2,
+  Trophy,
+  Users,
+  UserPlus,
+  ChevronRight,
+  ExternalLink,
+  UserX,
+  UserCheck,
+  Pencil,
+  Trash2,
+  X,
+  ImagePlus,
+} from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { fetchPublicTournaments } from "../../api/tournamentsPublicService";
+import {
+  fetchDelegateSummary,
+  togglePlayerStatus,
+  createPlayerMultipart,
+  updatePlayerMultipart,
+  deletePlayer,
+} from "../../api/tournamentInscriptionService";
+import {
+  isInscripcionesAbiertas,
+  tournamentPublicLabel,
+  tournamentPublicBadgeClass,
+} from "../../utils/tournamentPublicStatus";
+
+const PANEL_INSC_BASE = "/PanelControl/gestion-equipos/torneo";
+
+const POSITIONS = [
+  { value: "0", label: "Sin definir" },
+  { value: "1", label: "Portero" },
+  { value: "2", label: "Defensa" },
+  { value: "3", label: "Mediocampista" },
+  { value: "4", label: "Delantero" },
+  { value: "5", label: "Líbero (vóley)" },
+  { value: "6", label: "Armador" },
+  { value: "7", label: "Central" },
+  { value: "8", label: "Capitán" },
+];
+
+function positionLabel(pos) {
+  const s = String(pos ?? 0);
+  return POSITIONS.find((p) => p.value === s)?.label ?? "—";
+}
+
+function sortPlayers(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const aa = a.isActive ?? a.IsActive ?? true;
+    const bb = b.isActive ?? b.IsActive ?? true;
+    if (aa !== bb) return aa ? -1 : 1;
+    const na = a.number ?? a.Number;
+    const nb = b.number ?? b.Number;
+    if (na != null && nb != null && na !== nb) return Number(na) - Number(nb);
+    if (na != null && nb == null) return -1;
+    if (na == null && nb != null) return 1;
+    return String(a.name ?? a.Name ?? "").localeCompare(
+      String(b.name ?? b.Name ?? ""),
+      "es"
+    );
+  });
+}
+
+function tournamentStatusRaw(t) {
+  return (
+    t?.statusValue ??
+    t?.StatusValue ??
+    t?.status ??
+    t?.Status
+  );
+}
+
+function formatBirthForInput(v) {
+  if (v == null || v === "") return "";
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+export default function DelegadoGestionEquiposPage() {
+  const { can } = useAuth();
+  const puedeEquipo = can("tourn.team.manage");
+  const puedeEliminarJugador = can("tourn.manage");
+
+  const [summary, setSummary] = useState(null);
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+  const [deletingPlayerId, setDeletingPlayerId] = useState(null);
+  const [rosterMutateErr, setRosterMutateErr] = useState(null);
+
+  const [playerEdit, setPlayerEdit] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editErr, setEditErr] = useState(null);
+
+  const [quickAddTeamId, setQuickAddTeamId] = useState(null);
+  const [qaName, setQaName] = useState("");
+  const [qaDni, setQaDni] = useState("");
+  const [qaBirth, setQaBirth] = useState("");
+  const [qaNumber, setQaNumber] = useState("");
+  const [qaPosition, setQaPosition] = useState("0");
+  const [qaPhoto, setQaPhoto] = useState(null);
+  const [qaSaving, setQaSaving] = useState(false);
+  const [qaErr, setQaErr] = useState(null);
+  const [qaMsg, setQaMsg] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [s, tlist] = await Promise.all([
+        fetchDelegateSummary(),
+        fetchPublicTournaments(),
+      ]);
+      setSummary(s);
+      setTournaments(Array.isArray(tlist) ? tlist : []);
+    } catch (e) {
+      setError(
+        e?.response?.data?.message ||
+          (typeof e?.response?.data === "string"
+            ? e.response.data
+            : null) ||
+          "No se pudo cargar la información."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!puedeEquipo) return;
+    load();
+  }, [load, puedeEquipo]);
+
+  const openPlayerEdit = (p, teamGuid) => {
+    setRosterMutateErr(null);
+    setEditErr(null);
+    const numRaw = p.number ?? p.Number;
+    setPlayerEdit({
+      id: p.id ?? p.Id,
+      teamId: String(teamGuid),
+      name: String(p.name ?? p.Name ?? ""),
+      dni: String(p.dni ?? p.Dni ?? "")
+        .replace(/\D/g, "")
+        .slice(0, 10),
+      birth: formatBirthForInput(p.birthDate ?? p.BirthDate),
+      number:
+        numRaw != null && numRaw !== "" ? String(numRaw) : "",
+      position: String(p.position ?? p.Position ?? 0),
+      photoFile: null,
+    });
+  };
+
+  const closePlayerEdit = () => {
+    setPlayerEdit(null);
+    setEditErr(null);
+  };
+
+  const handlePlayerEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!playerEdit || !playerEdit.name.trim() || !playerEdit.dni.trim()) return;
+    setEditSaving(true);
+    setEditErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("TeamId", playerEdit.teamId);
+      fd.append("Name", playerEdit.name.trim());
+      fd.append("Dni", playerEdit.dni.trim().replace(/\s/g, ""));
+      if (playerEdit.birth) fd.append("BirthDate", playerEdit.birth);
+      if (playerEdit.number !== "" && playerEdit.number != null) {
+        const n = parseInt(playerEdit.number, 10);
+        if (!Number.isNaN(n)) fd.append("Number", String(n));
+      }
+      fd.append("Position", playerEdit.position || "0");
+      if (playerEdit.photoFile) fd.append("PhotoFile", playerEdit.photoFile);
+      await updatePlayerMultipart(playerEdit.id, fd);
+      closePlayerEdit();
+      await load();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo actualizar el jugador.";
+      setEditErr(msg);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handlePlayerDelete = async (p, displayName) => {
+    if (!puedeEliminarJugador) return;
+    const pid = p.id ?? p.Id;
+    if (
+      !window.confirm(
+        `¿Eliminar a ${displayName}? No se puede recuperar. Si ya participó en partidos con goles o tarjetas, el sistema no permitirá borrarlo.`
+      )
+    ) {
+      return;
+    }
+    setRosterMutateErr(null);
+    setDeletingPlayerId(pid);
+    try {
+      await deletePlayer(pid);
+      await load();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo eliminar el jugador.";
+      setRosterMutateErr(msg);
+    } finally {
+      setDeletingPlayerId(null);
+    }
+  };
+
+  const handleToggle = async (p) => {
+    const pid = p.id ?? p.Id;
+    const active = p.isActive ?? p.IsActive;
+    if (
+      !window.confirm(
+        `${active ? "¿Desactivar" : "¿Reactivar"} a este jugador en el plantel?`
+      )
+    ) {
+      return;
+    }
+    setRosterMutateErr(null);
+    setTogglingId(pid);
+    try {
+      await togglePlayerStatus(pid);
+      await load();
+    } catch (e) {
+      const msg =
+        e?.response?.data?.message ||
+        (typeof e?.response?.data === "string"
+          ? e.response.data
+          : null) ||
+        "No se pudo cambiar el estado del jugador.";
+      setRosterMutateErr(msg);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const resetQuickAdd = () => {
+    setQaName("");
+    setQaDni("");
+    setQaBirth("");
+    setQaNumber("");
+    setQaPosition("0");
+    setQaPhoto(null);
+    setQaErr(null);
+    setQaMsg(null);
+  };
+
+  const handleQuickAddSubmit = async (e, teamGuid) => {
+    e.preventDefault();
+    if (!qaName.trim() || !qaDni.trim()) return;
+    setQaSaving(true);
+    setQaErr(null);
+    setQaMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("TeamId", String(teamGuid));
+      fd.append("Name", qaName.trim());
+      fd.append("Dni", qaDni.trim().replace(/\s/g, ""));
+      if (qaBirth) fd.append("BirthDate", qaBirth);
+      if (qaNumber !== "" && qaNumber != null) {
+        const n = parseInt(qaNumber, 10);
+        if (!Number.isNaN(n)) fd.append("Number", String(n));
+      }
+      if (qaPosition && qaPosition !== "0") fd.append("Position", qaPosition);
+      if (qaPhoto) fd.append("PhotoFile", qaPhoto);
+      await createPlayerMultipart(fd);
+      setQaMsg("Jugador registrado.");
+      resetQuickAdd();
+      setQuickAddTeamId(null);
+      await load();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo registrar el jugador.";
+      setQaErr(msg);
+    } finally {
+      setQaSaving(false);
+    }
+  };
+
+  if (!puedeEquipo) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Esta sección es para quienes tienen permiso de{" "}
+        <strong>gestión de equipos e inscripción de jugadores</strong>. Si
+        necesitás acceso, contactá a OTI.
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-500">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <p className="text-sm font-medium">Cargando torneos y tus equipos…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-800 text-sm">
+        {error}
+      </div>
+    );
+  }
+
+  const nombreEscuela =
+    summary?.nombreEscuela ?? summary?.NombreEscuela ?? "Tu escuela";
+  const teams = summary?.teams ?? summary?.Teams ?? [];
+
+  const torneosInscripcion = tournaments.filter((t) => {
+    const id = t.id ?? t.Id;
+    if (id == null || id === "") return false;
+    return isInscripcionesAbiertas(tournamentStatusRaw(t));
+  });
+
+  const otrosTorneos = tournaments.filter((t) => {
+    const id = t.id ?? t.Id;
+    if (id == null || id === "") return false;
+    return !isInscripcionesAbiertas(tournamentStatusRaw(t));
+  });
+
+  return (
+    <div className="space-y-10">
+      <div>
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <UserPlus className="w-7 h-7 text-emerald-600" />
+          Gestión de equipos
+        </h2>
+        <p className="text-sm text-slate-600 mt-2 max-w-3xl leading-relaxed">
+          Desde acá podés <strong>inscribir equipos</strong> en torneos con
+          inscripciones abiertas y <strong>gestionar jugadores</strong> por
+          equipo: alta rápida, edición, activar o desactivar, y eliminación
+          solo para administración de torneos. Escuela:{" "}
+          <span className="font-semibold text-slate-800">{nombreEscuela}</span>
+          .
+        </p>
+      </div>
+
+      {rosterMutateErr && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {rosterMutateErr}
+        </div>
+      )}
+
+      <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white p-5 md:p-6 shadow-sm">
+        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <Trophy className="w-5 h-5 text-emerald-700" />
+          Inscribir o gestionar en un torneo
+        </h3>
+        <p className="text-xs text-slate-600 mt-1 mb-4">
+          Elegí un torneo con <strong>inscripciones abiertas</strong> para crear
+          equipos, anotarlos en una competencia y cargar jugadores (misma
+          herramienta que en la vitrina pública, dentro del panel).
+        </p>
+
+        {torneosInscripcion.length === 0 ? (
+          <p className="text-sm text-slate-500 py-2">
+            No hay torneos con inscripciones abiertas en este momento. Cuando el
+            administración abra inscripciones, aparecerán aquí.
+          </p>
+        ) : (
+          <ul className="grid sm:grid-cols-2 gap-3">
+            {torneosInscripcion.map((t) => {
+              const tid = String(t.id ?? t.Id);
+              const name = t.name ?? t.Name ?? "Torneo";
+              const st = tournamentStatusRaw(t);
+              return (
+                <li
+                  key={tid}
+                  className="rounded-xl border border-emerald-100 bg-white p-4 flex flex-col gap-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-slate-900 leading-snug">
+                      {name}
+                    </p>
+                    <span
+                      className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${tournamentPublicBadgeClass(st)}`}
+                    >
+                      {tournamentPublicLabel(st)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      to={`${PANEL_INSC_BASE}/${tid}/inscripcion`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                    >
+                      Registrar / inscribir equipo
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      to={`/torneos/torneo/${tid}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-emerald-700"
+                    >
+                      Ver vitrina
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {otrosTorneos.length > 0 && (
+          <details className="mt-5 text-sm">
+            <summary className="cursor-pointer text-slate-600 font-medium hover:text-slate-900">
+              Otros torneos ({otrosTorneos.length}) — sin inscripciones abiertas
+            </summary>
+            <ul className="mt-3 space-y-2 pl-1">
+              {otrosTorneos.map((t) => {
+                const tid = String(t.id ?? t.Id);
+                const name = t.name ?? t.Name ?? "Torneo";
+                const st = tournamentStatusRaw(t);
+                return (
+                  <li
+                    key={tid}
+                    className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 border-b border-slate-100 pb-2"
+                  >
+                    <span>{name}</span>
+                    <span className="text-slate-400">
+                      {tournamentPublicLabel(st)}
+                    </span>
+                    <Link
+                      to={`/torneos/torneo/${tid}`}
+                      className="text-emerald-700 font-semibold hover:underline"
+                    >
+                      Ver
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm space-y-6">
+        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <Users className="w-5 h-5 text-slate-700" />
+          Tus equipos y jugadores
+        </h3>
+        <p className="text-xs text-slate-600 -mt-4">
+          Alta rápida de jugadores, edición y baja de estado debajo. Para crear
+          equipos o inscribir en una competencia usá el enlace por torneo o el
+          formulario extendido.
+        </p>
+
+        {teams.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4 text-center border border-dashed border-slate-200 rounded-xl">
+            Aún no tenés equipos registrados. Usá un torneo con inscripciones
+            abiertas arriba para crear el primero.
+          </p>
+        ) : (
+          teams.map((team) => {
+            const tid = String(team.id ?? team.Id);
+            const tname = team.name ?? team.Name ?? "Equipo";
+            const initials = team.initials ?? team.Initials;
+            const inscriptions =
+              team.inscriptions ?? team.Inscriptions ?? [];
+            const players = sortPlayers(team.players ?? team.Players ?? []);
+
+            return (
+              <div
+                key={tid}
+                className="rounded-xl border border-slate-100 bg-slate-50/60 overflow-hidden"
+              >
+                <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-100">
+                  <p className="font-bold text-slate-900">
+                    {tname}
+                    {initials ? (
+                      <span className="text-slate-500 font-normal text-sm ml-2">
+                        ({initials})
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {players.length}{" "}
+                    {players.length === 1 ? "jugador" : "jugadores"}
+                  </p>
+                </div>
+
+                <div className="px-4 py-3 border-b border-slate-100 bg-white">
+                  <p className="text-[10px] font-bold uppercase text-slate-500 mb-2">
+                    Gestionar inscripción y plantel
+                  </p>
+                  {inscriptions.length === 0 ? (
+                    <p className="text-xs text-slate-500 mb-2">
+                      Este equipo no está inscrito en ninguna competencia.
+                      Elegí un torneo arriba e inscribilo desde el formulario.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {inscriptions.map((ins) => {
+                        const cid = String(
+                          ins.competitionId ?? ins.CompetitionId
+                        );
+                        const tourId = String(
+                          ins.tournamentId ?? ins.TournamentId
+                        );
+                        const label =
+                          ins.competitionLabel ??
+                          ins.CompetitionLabel ??
+                          "Competencia";
+                        const tourName =
+                          ins.tournamentName ?? ins.TournamentName ?? "";
+                        return (
+                          <li key={cid}>
+                            <Link
+                              to={`${PANEL_INSC_BASE}/${tourId}/inscripcion?competitionId=${encodeURIComponent(cid)}`}
+                              className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+                            >
+                              <UserPlus className="w-4 h-4 shrink-0" />
+                              <span>{tourName}</span>
+                              <span className="text-slate-500 font-normal">
+                                — {label}
+                              </span>
+                              <ChevronRight className="w-4 h-4" />
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {torneosInscripcion.length > 0 && (
+                    <p className="text-[11px] text-slate-500 mt-3">
+                      ¿Nueva competencia? Elegí el torneo en la sección superior
+                      y usá el mismo equipo desde el formulario de inscripción.
+                    </p>
+                  )}
+                </div>
+
+                <div className="px-4 py-3 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <p className="text-[10px] font-bold uppercase text-slate-500">
+                      Jugadores (CRUD)
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRosterMutateErr(null);
+                        if (quickAddTeamId === tid) {
+                          setQuickAddTeamId(null);
+                          resetQuickAdd();
+                        } else {
+                          resetQuickAdd();
+                          setQuickAddTeamId(tid);
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-700 hover:underline"
+                    >
+                      {quickAddTeamId === tid
+                        ? "Cerrar alta rápida"
+                        : "+ Agregar jugador"}
+                    </button>
+                  </div>
+
+                  {quickAddTeamId === tid && (
+                    <form
+                      onSubmit={(e) => handleQuickAddSubmit(e, tid)}
+                      className="mb-4 p-4 rounded-xl border border-violet-200 bg-violet-50/40 space-y-3 text-sm"
+                    >
+                      {qaMsg && (
+                        <p className="text-xs font-medium text-violet-900">
+                          {qaMsg}
+                        </p>
+                      )}
+                      {qaErr && (
+                        <p className="text-xs text-red-600">{qaErr}</p>
+                      )}
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                            Nombre completo
+                          </label>
+                          <input
+                            required
+                            value={qaName}
+                            onChange={(e) => setQaName(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                            Código estudiante (10 dígitos)
+                          </label>
+                          <input
+                            required
+                            maxLength={10}
+                            inputMode="numeric"
+                            placeholder="Ej. 0020180314"
+                            value={qaDni}
+                            onChange={(e) =>
+                              setQaDni(
+                                e.target.value.replace(/\D/g, "").slice(0, 10)
+                              )
+                            }
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                            Nacimiento (opc.)
+                          </label>
+                          <input
+                            type="date"
+                            value={qaBirth}
+                            onChange={(e) => setQaBirth(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Dorsal
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={99}
+                              value={qaNumber}
+                              onChange={(e) => setQaNumber(e.target.value)}
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Puesto
+                            </label>
+                            <select
+                              value={qaPosition}
+                              onChange={(e) => setQaPosition(e.target.value)}
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                            >
+                              {POSITIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                          Foto (opc.)
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            setQaPhoto(e.target.files?.[0] ?? null)
+                          }
+                          className="w-full text-xs"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={qaSaving || !qaName.trim() || !qaDni.trim()}
+                        className="w-full py-2 rounded-lg bg-violet-700 text-white text-xs font-bold hover:bg-violet-800 disabled:opacity-50"
+                      >
+                        {qaSaving ? "Guardando…" : "Registrar jugador"}
+                      </button>
+                    </form>
+                  )}
+
+                  {players.length === 0 ? (
+                    <p className="text-xs text-slate-500">Sin jugadores.</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+                      {players.map((p) => {
+                        const pid = p.id ?? p.Id;
+                        const pname = p.name ?? p.Name ?? "—";
+                        const code = p.dni ?? p.Dni ?? "—";
+                        const num = p.number ?? p.Number;
+                        const pos = p.position ?? p.Position;
+                        const active = p.isActive ?? p.IsActive ?? true;
+                        return (
+                          <li
+                            key={String(pid)}
+                            className={`px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-sm ${
+                              !active ? "bg-slate-50" : ""
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                              {num != null && num !== "" ? (
+                                <span className="inline-flex w-6 h-6 items-center justify-center rounded border text-[10px] font-bold">
+                                  {num}
+                                </span>
+                              ) : null}
+                              <span className="font-medium text-slate-900">
+                                {pname}
+                              </span>
+                              {!active ? (
+                                <span className="text-[10px] font-bold uppercase text-amber-800 bg-amber-100 px-1 rounded">
+                                  Inactivo
+                                </span>
+                              ) : null}
+                              <span className="text-xs font-mono text-slate-600">
+                                {code}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {positionLabel(pos)}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openPlayerEdit(p, tid)}
+                                disabled={
+                                  !!playerEdit ||
+                                  !!deletingPlayerId ||
+                                  togglingId === pid ||
+                                  qaSaving
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-slate-200 text-slate-800 bg-white hover:bg-slate-50 disabled:opacity-50"
+                              >
+                                <Pencil className="w-3 h-3" />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggle(p)}
+                                disabled={
+                                  !!playerEdit ||
+                                  deletingPlayerId === pid ||
+                                  togglingId === pid ||
+                                  qaSaving
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-amber-200 text-amber-900 bg-white hover:bg-amber-50 disabled:opacity-50"
+                              >
+                                {togglingId === pid ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : active ? (
+                                  <UserX className="w-3 h-3" />
+                                ) : (
+                                  <UserCheck className="w-3 h-3" />
+                                )}
+                                {active ? "Desactivar" : "Reactivar"}
+                              </button>
+                              {puedeEliminarJugador ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handlePlayerDelete(p, pname)
+                                  }
+                                  disabled={
+                                    !!playerEdit ||
+                                    deletingPlayerId === pid ||
+                                    togglingId === pid ||
+                                    qaSaving
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-rose-200 text-rose-800 bg-white hover:bg-rose-50 disabled:opacity-50"
+                                  title="Solo administración de torneos"
+                                >
+                                  {deletingPlayerId === pid ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3 h-3" />
+                                  )}
+                                  Eliminar
+                                </button>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {playerEdit && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/45"
+          role="presentation"
+          onClick={closePlayerEdit}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delegado-player-edit-title"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-white rounded-t-2xl">
+              <h2
+                id="delegado-player-edit-title"
+                className="text-lg font-bold text-slate-900"
+              >
+                Editar jugador
+              </h2>
+              <button
+                type="button"
+                onClick={closePlayerEdit}
+                disabled={editSaving}
+                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handlePlayerEditSubmit}
+              className="px-5 py-4 space-y-4"
+            >
+              {editErr && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {editErr}
+                </p>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                  Nombre completo
+                </label>
+                <input
+                  required
+                  value={playerEdit.name}
+                  onChange={(e) =>
+                    setPlayerEdit((prev) =>
+                      prev ? { ...prev, name: e.target.value } : prev
+                    )
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                    Código de estudiante (hasta 10 dígitos)
+                  </label>
+                  <input
+                    required
+                    maxLength={10}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Ej. 0020180314"
+                    value={playerEdit.dni}
+                    onChange={(e) =>
+                      setPlayerEdit((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              dni: e.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 10),
+                            }
+                          : prev
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                    Fecha de nacimiento (opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={playerEdit.birth}
+                    onChange={(e) =>
+                      setPlayerEdit((prev) =>
+                        prev ? { ...prev, birth: e.target.value } : prev
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                    N° de camiseta (opcional)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    value={playerEdit.number}
+                    onChange={(e) =>
+                      setPlayerEdit((prev) =>
+                        prev ? { ...prev, number: e.target.value } : prev
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                    Puesto
+                  </label>
+                  <select
+                    value={playerEdit.position}
+                    onChange={(e) =>
+                      setPlayerEdit((prev) =>
+                        prev
+                          ? { ...prev, position: e.target.value }
+                          : prev
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    {POSITIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                  <ImagePlus className="w-4 h-4" />
+                  Nueva foto (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setPlayerEdit((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            photoFile: e.target.files?.[0] ?? null,
+                          }
+                        : prev
+                    )
+                  }
+                  className="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Si no elegís archivo, se mantiene la foto actual.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closePlayerEdit}
+                  disabled={editSaving}
+                  className="flex-1 min-w-[120px] py-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold text-sm hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    editSaving ||
+                    !playerEdit.name.trim() ||
+                    !playerEdit.dni.trim()
+                  }
+                  className="flex-1 min-w-[120px] py-2.5 rounded-xl bg-violet-700 text-white font-bold text-sm hover:bg-violet-800 disabled:opacity-50"
+                >
+                  {editSaving ? "Guardando…" : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

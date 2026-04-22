@@ -1,9 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Eye, EyeOff, LogIn, TreePine } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axiosConfig";
 import { useAuth } from "../context/AuthContext"; // 👈 IMPORTAMOS EL CONTEXTO
 import { useToast } from "../context/ToastContext";
+import {
+  parseSafeReturnUrl,
+  POST_LOGIN_REDIRECT_KEY,
+} from "../utils/returnUrl";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -12,8 +16,20 @@ export default function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const isPasswordValid = password.length >= 8;
+
+  /** Prioridad: ?returnUrl= (p. ej. Navbar) · respaldo sessionStorage (p. ej. flujo inscripción). */
+  const effectiveReturnUrl = useMemo(() => {
+    const fromQuery = parseSafeReturnUrl(searchParams.get("returnUrl"));
+    if (fromQuery) return fromQuery;
+    try {
+      return parseSafeReturnUrl(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY));
+    } catch {
+      return null;
+    }
+  }, [searchParams]);
 
   // 👇 EXTRAEMOS LA FUNCIÓN DE LOGIN DEL CONTEXTO
   const { login, user } = useAuth(); 
@@ -21,9 +37,9 @@ export default function Login() {
   // Redirigir si ya está logueado oficialmente
   useEffect(() => {
     if (user) {
-      navigate("/PanelControl"); // ✅ Redirigir siempre a la ruta oficial
+      navigate(effectiveReturnUrl || "/PanelControl", { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, effectiveReturnUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +54,7 @@ export default function Login() {
 
       // 👇 DELEGAMOS TODO EL TRABAJO AL AUTHCONTEXT 👇
       // Él decidirá si entra al Dashboard o si lo manda a /security/update-password
-      login(response.data);
+      login(response.data, effectiveReturnUrl || undefined);
 
     } catch (err) {
       setError(err.response?.data?.message || "DNI o contraseña incorrectos");

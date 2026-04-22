@@ -10,6 +10,17 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useToast } from '../../context/ToastContext';
 import ModalUsuario from './ModalUsuario';
 
+/** Facultad/oficina según el DTO del API (`nombreInstitucion`, `entidad`; legacy `nombreOrganizacion`). */
+function usuarioInstitucionLabel(u) {
+  const largo = String(
+    u.nombreInstitucion ?? u.NombreInstitucion ?? u.nombreOrganizacion ?? u.NombreOrganizacion ?? ""
+  ).trim();
+  if (largo) return largo;
+  const corto = String(u.entidad ?? u.Entidad ?? "").trim();
+  if (corto && corto !== "S/D") return corto;
+  return "Sin asignar";
+}
+
 export default function UsuariosPage() {
   const { can } = useAuth();
   const { confirm } = useConfirm();
@@ -293,7 +304,7 @@ export default function UsuariosPage() {
                           {u.rol}
                         </span>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                          {u.nombreOrganizacion || 'Sede Central'}
+                          {usuarioInstitucionLabel(u)}
                         </p>
                       </div>
                     </td>

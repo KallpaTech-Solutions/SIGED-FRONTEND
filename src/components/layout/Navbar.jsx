@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { LayoutDashboard, Menu, X } from "lucide-react";
@@ -9,6 +9,13 @@ export default function Navbar() {
   const { user, loading, logout, loggingOut } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
+
+  /** Login conservando la pantalla actual (p. ej. inscripción al torneo). */
+  const loginHref = useMemo(() => {
+    if (location.pathname === "/login") return "/login";
+    const back = `${location.pathname}${location.search || ""}`;
+    return `/login?returnUrl=${encodeURIComponent(back)}`;
+  }, [location.pathname, location.search]);
 
   // Mostramos acceso al panel solo si realmente hay sesión cargada
   const showAdminPanel = !!user && !loading;
@@ -96,7 +103,7 @@ export default function Navbar() {
         <div className="hidden md:block">
           {!user ? (
             <Link
-              to="/login"
+              to={loginHref}
               className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full text-[12px] font-bold tracking-[0.18em] uppercase border transition-all ${
                 inDashboard
                   ? "border-emerald-400/60 text-emerald-200 hover:bg-emerald-500/10"
@@ -185,7 +192,7 @@ export default function Navbar() {
               </>
             ) : (
               <Link
-                to="/login"
+                to={loginHref}
                 onClick={() => setIsMobileOpen(false)}
                 className={`w-full text-center text-xs font-bold tracking-[0.16em] uppercase inline-flex items-center justify-center px-3 py-2 rounded-full border transition-all ${
                   inDashboard

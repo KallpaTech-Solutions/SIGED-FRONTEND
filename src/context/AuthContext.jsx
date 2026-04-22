@@ -2,8 +2,69 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import api from '../api/axiosConfig';
+import { POST_LOGIN_REDIRECT_KEY } from '../utils/returnUrl';
 
 const AuthContext = createContext();
+
+/** Primer valor string si el claim JWT viene como string o arreglo (tokens .NET). */
+function firstString(value) {
+    if (value == null) return null;
+    if (Array.isArray(value)) return firstString(value[0]);
+    const s = typeof value === 'string' ? value : String(value);
+    const t = s.trim();
+    return t.length ? t : null;
+}
+
+const ROLE_CLAIM_KEYS = [
+    'role',
+    'Role',
+    'http://schemas.microsoft.com/ws/2008/06/identity/claims/role',
+];
+
+function extractRoleFromToken(decoded, userData) {
+    if (!decoded || typeof decoded !== 'object') {
+        return firstString(userData?.rol ?? userData?.Rol);
+    }
+    for (const key of ROLE_CLAIM_KEYS) {
+        const v = firstString(decoded[key]);
+        if (v) return v;
+    }
+    return firstString(userData?.rol ?? userData?.Rol);
+}
+
+function extractPermissionsFromToken(decoded) {
+    if (!decoded || typeof decoded !== 'object') return [];
+    const raw = decoded.permission ?? decoded.Permission;
+    if (raw == null) return [];
+    const list = Array.isArray(raw) ? raw : [raw];
+    return [...new Set(list.map((p) => String(p).trim()).filter(Boolean))];
+}
+
+function isSuperAdminRol(rol) {
+    const s = firstString(rol);
+    if (!s) return false;
+    return s.replace(/\s+/g, '').toUpperCase() === 'SUPERADMIN';
+}
+
+function processToken(userData) {
+    try {
+        const decoded = jwtDecode(userData.token);
+        const permissions = extractPermissionsFromToken(decoded);
+        const rol = extractRoleFromToken(decoded, userData);
+        return {
+            ...userData,
+            permissions,
+            rol,
+        };
+    } catch (error) {
+        console.error("Error al decodificar el token", error);
+        return {
+            ...userData,
+            permissions: extractPermissionsFromToken({}),
+            rol: firstString(userData?.rol ?? userData?.Rol),
+        };
+    }
+}
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -11,35 +72,7 @@ export const AuthProvider = ({ children }) => {
     const [loggingOut, setLoggingOut] = useState(false);
     const navigate = useNavigate();
 
-    // --- FUNCIÓN INTERNA PARA PROCESAR EL TOKEN ---
-    // Dentro de AuthContext.jsx -> Modifica processToken
-    const processToken = (userData) => {
-        try {
-            const decoded = jwtDecode(userData.token);
-            
-            // 1. Extraer Permisos
-            let rawPermissions = decoded.permission || [];
-            const permissions = Array.isArray(rawPermissions) ? rawPermissions : [rawPermissions];
-
-            // 2. Extraer Rol (Buscamos todas las formas posibles que usa C#)
-            const roleFromToken = 
-                decoded.role || 
-                decoded["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || 
-                userData.rol; // Si el API lo mandó por fuera
-
-            // 3. Devolvemos el usuario con el ROL GARANTIZADO
-            return { 
-                ...userData, 
-                permissions, 
-                rol: roleFromToken 
-            };
-        } catch (error) {
-            console.error("Error al decodificar el token", error);
-            return { ...userData, permissions: [], rol: null };
-        }
-    };
-
-    const login = (data) => {
+    const login = (data, redirectAfter) => {
         // 🛡️ Si requiere cambio de contraseña, redirigimos ahí primero
         if (data.requiereCambioPassword) {
             localStorage.setItem("temp_user", JSON.stringify(data));
@@ -57,8 +90,17 @@ export const AuthProvider = ({ children }) => {
         setUser(userWithPermissions);
         
         // 3. Damos un tic al render antes de navegar para evitar carreras
+        const target =
+            typeof redirectAfter === "string" && redirectAfter.trim().length > 0
+                ? redirectAfter.trim()
+                : "/PanelControl";
         setTimeout(() => {
-            navigate('/PanelControl', { replace: true });
+            try {
+                sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+            } catch {
+                /* ignore */
+            }
+            navigate(target, { replace: true });
         }, 10);
     };
 
@@ -81,8 +123,15 @@ export const AuthProvider = ({ children }) => {
         
         if (savedUser && token) {
             try {
-                // Solo hidratamos el usuario; la navegación la manejan las rutas/protected routes
-                setUser(JSON.parse(savedUser));
+                const parsed = JSON.parse(savedUser);
+                // Vuelve a leer permisos/rol desde el JWT (corrige usuarios guardados sin permissions o rol desfasado)
+                const refreshed = processToken({ ...parsed, token });
+                setUser(refreshed);
+                try {
+                    localStorage.setItem('user', JSON.stringify(refreshed));
+                } catch {
+                    /* ignore quota / private mode */
+                }
             } catch (e) {
                 localStorage.clear();
                 setUser(null);
@@ -106,14 +155,13 @@ export const AuthProvider = ({ children }) => {
 
     // --- EL CEREBRO DE LA SEGURIDAD ---
     const can = (permissionName) => {
-        // SuperAdmin lo puede todo por defecto
-        if (user?.rol === "SuperAdmin") return true;
-        
+        if (isSuperAdminRol(user?.rol)) return true;
         return user?.permissions?.includes(permissionName) || false;
     };
 
     const hasRole = (roleName) => {
-        return user?.rol === roleName || user?.rol === "SuperAdmin";
+        if (isSuperAdminRol(user?.rol)) return true;
+        return firstString(user?.rol) === roleName;
     };
 
     const logout = async () => {
