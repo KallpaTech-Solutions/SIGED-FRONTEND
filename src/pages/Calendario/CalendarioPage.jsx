@@ -10,7 +10,7 @@ import {
 
 export default function CalendarioPage() {
   return (
-    <div className="w-full min-h-screen bg-slate-50 font-inter">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-slate-50 font-inter">
       {/* Header ejecutivo - Calendario competitivo */}
       <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
         <div className="container mx-auto px-4 max-w-5xl">

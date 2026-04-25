@@ -9,9 +9,15 @@ function normalizeId(v) {
 }
 
 /**
- * Une el partido al hub y, tras cada actualización del marcador, vuelve a cargar detalle + eventos.
+ * Une el partido al hub y sincroniza marcador / estado / reloj al instante.
+ * Refetch completo solo cuando cambia la línea de tiempo (eventos).
  */
-export function useMatchPublicDetailHub(matchId, enabled, setDetail) {
+export function useMatchPublicDetailHub(
+  matchId,
+  enabled,
+  setDetail,
+  preferMesaDetail = false
+) {
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -32,11 +38,13 @@ export function useMatchPublicDetailHub(matchId, enabled, setDetail) {
       .withAutomaticReconnect()
       .build();
 
-    const refresh = () => {
+    const scheduleFullRefresh = () => {
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(async () => {
         try {
-          const data = await fetchMatchPublicDetailEnriched(matchId);
+          const data = await fetchMatchPublicDetailEnriched(matchId, {
+            preferMesaDetail,
+          });
           setDetail(data);
         } catch {
           /* ignore */
@@ -48,7 +56,40 @@ export function useMatchPublicDetailHub(matchId, enabled, setDetail) {
       const mid = payload?.matchId;
       if (mid == null) return;
       if (normalizeId(mid) !== normalizeId(matchId)) return;
-      refresh();
+
+      setDetail((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if ("status" in payload && payload.status != null) {
+          next.status = payload.status;
+        }
+        if ("localScore" in payload) {
+          next.localScore = payload.localScore;
+        }
+        if ("visitorScore" in payload) {
+          next.visitorScore = payload.visitorScore;
+        }
+        if ("clockAccumulatedSeconds" in payload) {
+          next.clockAccumulatedSeconds = payload.clockAccumulatedSeconds;
+        }
+        if ("clockPeriodAnchorUtc" in payload) {
+          next.clockPeriodAnchorUtc = payload.clockPeriodAnchorUtc;
+        }
+        if ("clockWidgetKind" in payload && payload.clockWidgetKind != null) {
+          next.clockWidgetKind = payload.clockWidgetKind;
+        }
+        if ("broadcastWidgetJson" in payload && payload.broadcastWidgetJson != null) {
+          next.broadcastWidgetJson = payload.broadcastWidgetJson;
+        }
+        return next;
+      });
+
+      /**
+       * Refetch completo siempre (debounced): el snapshot del hub no trae la lista de eventos,
+       * y acciones como «siguiente periodo» o cronómetro solo mandan HubMatchSnapshot sin lastEvent.
+       * Sin esto el público veía el acumulado/ancla bien pero periodo/eventos viejos.
+       */
+      scheduleFullRefresh();
     };
 
     connection.on("ReceiveMatchUpdate", onMatchUpdate);
@@ -70,5 +111,5 @@ export function useMatchPublicDetailHub(matchId, enabled, setDetail) {
       clearTimeout(debounceRef.current);
       connection.stop().catch(() => {});
     };
-  }, [matchId, enabled, setDetail]);
+  }, [matchId, enabled, setDetail, preferMesaDetail]);
 }

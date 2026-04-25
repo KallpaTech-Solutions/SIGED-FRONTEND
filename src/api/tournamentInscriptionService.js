@@ -67,6 +67,29 @@ export async function createTeamMultipart(formData) {
   return data;
 }
 
+/** Usuarios activos de tu escuela (delegado principal elige co-delegados). GET /Teams/me/org-users */
+export async function fetchOrgUsersForTeamGestores() {
+  const { data } = await api.get("/Teams/me/org-users");
+  return data;
+}
+
+/** GET /Teams/{id}/gestores */
+export async function fetchTeamGestores(teamId) {
+  const { data } = await api.get(`/Teams/${teamId}/gestores`);
+  return data;
+}
+
+/** POST /Teams/{id}/gestores — body { usuarioId } */
+export async function postTeamGestor(teamId, usuarioId) {
+  const { data } = await api.post(`/Teams/${teamId}/gestores`, { usuarioId });
+  return data;
+}
+
+/** DELETE /Teams/{id}/gestores/{usuarioId} */
+export async function deleteTeamGestor(teamId, usuarioId) {
+  await api.delete(`/Teams/${teamId}/gestores/${usuarioId}`);
+}
+
 /**
  * Alta de jugador (POST /api/Players, multipart).
  */

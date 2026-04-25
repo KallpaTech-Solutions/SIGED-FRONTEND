@@ -82,7 +82,7 @@ export default function FirstAccessValidation() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-6 font-montserrat">
+    <div className="flex-1 min-h-0 bg-slate-50 flex items-center justify-center px-4 py-6 font-montserrat">
       <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-6 md:gap-10 items-stretch">
         {/* Lado izquierdo: mensaje institucional */}
         <div className="hidden md:flex flex-col justify-center rounded-3xl border border-slate-200 bg-white px-8 py-10 shadow-[0_18px_60px_rgba(15,23,42,0.08)] text-slate-800">

@@ -87,23 +87,39 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const dniTrim = String(formData.dni ?? "").trim();
+    if (!dniTrim) {
+      toast("El DNI es obligatorio: es el usuario de acceso al sistema.", "error");
+      return;
+    }
+    const correoTrim = String(formData.correo ?? "").trim();
+    if (!correoTrim) {
+      toast("El correo institucional es obligatorio.", "error");
+      return;
+    }
     setLoading(true);
-    
-    // Payload base compatible con el DTO del backend
+
+    const rolIdNum = Number(formData.rolId);
+    const cargoTrim = String(formData.cargo ?? "").trim();
+    const oficinaTrim = String(formData.oficina ?? "").trim();
+
+    // Payload camelCase (API con PropertyNamingPolicy CamelCase)
     const basePayload = {
-      dni: String(formData.dni),
-      nombres: formData.nombres,
-      apellidos: formData.apellidos,
-      username: formData.dni,
-      password: String(formData.dni),
-      rolId: Number(formData.rolId),
-      correo: formData.correo || null,
+      dni: dniTrim,
+      nombres: String(formData.nombres ?? "").trim(),
+      apellidos: String(formData.apellidos ?? "").trim(),
+      username: dniTrim,
+      password: dniTrim,
+      rolId: rolIdNum,
+      correo: correoTrim,
       organizacionId: formData.organizacionId ? Number(formData.organizacionId) : null,
-      codigoEstudiante: Number(formData.rolId) === 4 ? formData.codigoEstudiante : null,
-      cargo: Number(formData.rolId) !== 4 ? (formData.cargo || "Personal Administrativo") : null,
-      oficina: Number(formData.rolId) !== 4 ? (formData.oficina || "Sede Central") : null,
+      codigoEstudiante: rolIdNum === 4 ? String(formData.codigoEstudiante ?? "").trim() || null : null,
+      cargo:
+        rolIdNum !== 4 ? cargoTrim || "Personal administrativo" : null,
+      oficina: rolIdNum !== 4 ? oficinaTrim || "Sede Central" : null,
       telefono: null,
       dependenciaId: null,
+      esPersonalInterno: true,
     };
 
     try {

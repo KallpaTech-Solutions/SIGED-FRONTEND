@@ -27,6 +27,8 @@ function matchStatusLabel(s) {
     return { text: "Finalizado", className: "text-slate-700 bg-slate-100 border-slate-200" };
   if (x === "Suspendido" || x === "3")
     return { text: "Suspendido", className: "text-amber-800 bg-amber-50 border-amber-100" };
+  if (x === "Programado" || x === "0")
+    return { text: "Programado", className: "text-slate-600 bg-slate-50 border-slate-200" };
   return { text: "Pendiente", className: "text-sky-800 bg-sky-50 border-sky-100" };
 }
 
@@ -43,6 +45,16 @@ function splitMatches(matches) {
     else pend.push(m);
   }
   return { live, done, pending: pend };
+}
+
+/** Misma fila que envía el dashboard en `phase.matches` (fecha/sede vía SQL). */
+function findPhaseMatchRow(phaseMatches, matchId) {
+  if (matchId == null || matchId === "") return null;
+  const key = String(matchId).toLowerCase();
+  const list = Array.isArray(phaseMatches) ? phaseMatches : [];
+  return (
+    list.find((m) => String(m.id ?? m.Id ?? "").toLowerCase() === key) ?? null
+  );
 }
 
 function MatchCard({ m, venueByMatchId }) {
@@ -191,7 +203,7 @@ function StandingsTable({ standings }) {
   );
 }
 
-function KnockoutRounds({ bracket }) {
+function KnockoutRounds({ bracket, venueByMatchId, phaseMatches }) {
   const rounds = bracket?.rounds ?? bracket?.Rounds ?? [];
   if (!rounds.length) return null;
   return (
@@ -213,21 +225,34 @@ function KnockoutRounds({ bracket }) {
                 const ls = bm.localScore ?? bm.LocalScore ?? 0;
                 const vs = bm.visitorScore ?? bm.VisitorScore ?? 0;
                 const st = bm.status ?? bm.Status ?? "";
+                const row = findPhaseMatchRow(phaseMatches, mid);
+                const sched =
+                  row?.scheduledAt ??
+                  row?.ScheduledAt ??
+                  bm.scheduledAt ??
+                  bm.ScheduledAt;
+                const venue =
+                  row?.venueName ??
+                  row?.VenueName ??
+                  bm.venueName ??
+                  bm.VenueName;
+                const cardPayload = {
+                  id: mid,
+                  Id: mid,
+                  status: st,
+                  scheduledAt: sched,
+                  localTeamName: local,
+                  visitorTeamName: visitor,
+                  localScore: ls,
+                  visitorScore: vs,
+                  venueName: venue,
+                };
                 return (
-                  <Link
+                  <MatchCard
                     key={mid}
-                    to={`/torneos/partido/${mid}`}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-emerald-300 transition-all"
-                  >
-                    <p className="text-[10px] text-slate-500 mb-2">{String(st)}</p>
-                    <div className="flex justify-between items-center gap-2 text-sm">
-                      <span className="font-semibold truncate flex-1 text-right">{local}</span>
-                      <span className="font-black tabular-nums px-2">
-                        {ls} — {vs}
-                      </span>
-                      <span className="font-semibold truncate flex-1 text-left">{visitor}</span>
-                    </div>
-                  </Link>
+                    m={cardPayload}
+                    venueByMatchId={venueByMatchId}
+                  />
                 );
               })}
             </div>
@@ -394,7 +419,11 @@ export default function CompetitionDashboard({ dashboard, venueByMatchId }) {
                   <p className="text-xs font-semibold text-slate-600 mb-3">
                     Llave (eliminatoria)
                   </p>
-                  <KnockoutRounds bracket={bracket} />
+                  <KnockoutRounds
+                    bracket={bracket}
+                    venueByMatchId={venueByMatchId}
+                    phaseMatches={flat}
+                  />
                 </div>
               ) : flat.length > 0 ? (
                 <div className="space-y-6">

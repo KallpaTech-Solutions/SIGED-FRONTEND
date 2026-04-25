@@ -16,18 +16,20 @@ import {
   Shirt,
   UserPlus,
   MapPin,
+  LayoutGrid,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Dashboard() {
-  const { user, can, loading } = useAuth();
+  const { user, can, hasRole, loading } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 1. Pantalla de carga global del Dashboard (Evita parpadeos y llamadas antes de tener usuario)
   if (loading || !user) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8fafc]">
+      <div className="flex-1 w-full min-h-[50vh] flex flex-col items-center justify-center bg-[#f8fafc]">
         <Loader2 className="animate-spin text-primary mb-4" size={40} />
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Iniciando Entorno SIGED...</p>
       </div>
@@ -71,10 +73,22 @@ export default function Dashboard() {
         can("tourn.match.control"),
     },
     {
+      title: "Widgets de transmisión",
+      path: "/PanelControl/widgets-transmision",
+      icon: LayoutGrid,
+      visible: can("tourn.match.widgets") || can("tourn.match.control"),
+    },
+    {
       title: "Equipos y planteles",
       path: "/PanelControl/torneos/equipos",
       icon: Shirt,
       visible: can("tourn.manage"),
+    },
+    {
+      title: "Alta equipo (SuperAdmin)",
+      path: "/PanelControl/torneos/alta-equipo-superadmin",
+      icon: Shield,
+      visible: hasRole("SuperAdmin"),
     },
     {
       title: "Sedes y canchas",
@@ -123,6 +137,10 @@ export default function Dashboard() {
         "Inscribí equipos en torneos y administrá jugadores desde el panel.",
     },
     torneos: { title: "Torneos", subtitle: "Torneos y competencias." },
+    "widgets-transmision": {
+      title: "Widgets de transmisión",
+      subtitle: "Tableros deportivos y tiempos en la vitrina del partido.",
+    },
     disciplinas: { title: "Disciplinas", subtitle: "Catálogo deportivo y reglas maestras." },
     configuracion: { title: "Configuración", subtitle: "Roles, permisos y preferencias del panel." },
   };
@@ -135,7 +153,7 @@ export default function Dashboard() {
   const canOpenConfig = can("security.role.manage");
 
   return (
-    <div className="relative flex min-h-[calc(100vh-64px)] bg-[#f8fafc] font-inter text-slate-900">
+    <div className="relative flex flex-1 min-h-0 w-full items-stretch bg-[#f8fafc] font-inter text-slate-900">
       {/* --- SIDEBAR MÓVIL (drawer) --- */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)}>
@@ -199,9 +217,9 @@ export default function Dashboard() {
       )}
 
       {/* --- SIDEBAR DESKTOP ---
-          Solo altura natural + sticky (sin h=100vh): si no, el pie del sidebar queda
-          fijo abajo del viewport y se superpone al <Footer> global al hacer scroll. */}
-      <aside className="hidden md:flex w-64 shrink-0 bg-slate-900 text-slate-100 flex-col self-start sticky top-16 max-h-[calc(100vh-4rem)] overflow-hidden z-[1] border-r border-slate-800">
+          Altura = viewport menos navbar (4rem): el fondo oscuro llega siempre abajo;
+          navegación con scroll si hay muchas opciones; sticky al hacer scroll en páginas largas. */}
+      <aside className="hidden md:flex w-64 shrink-0 bg-slate-900 text-slate-100 flex-col sticky top-16 self-stretch min-h-[calc(100vh-4rem)] overflow-hidden z-[1] border-r border-slate-800">
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.26em] mb-6 pl-2">
             Administración
@@ -262,8 +280,8 @@ export default function Dashboard() {
       </aside>
 
       {/* --- CONTENIDO PRINCIPAL --- */}
-      <main className="flex-1 p-4 md:p-10 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
+      <main className="flex-1 min-h-0 p-4 md:p-10 overflow-y-auto flex flex-col">
+        <div className="max-w-5xl mx-auto flex-1 flex flex-col min-h-0 w-full">
           <header className="mb-5 md:mb-8">
             <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-900 to-emerald-800 px-4 py-4 md:px-6 md:py-5 shadow-lg shadow-slate-900/20 border border-slate-700/50 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
               <div className="min-w-0">

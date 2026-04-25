@@ -29,8 +29,10 @@ import TorneoPublicoDetallePage from "./pages/Torneos/TorneoPublicoDetallePage";
 import EquipoPublicoPage from "./pages/Torneos/EquipoPublicoPage";
 import TorneoInscripcionPage from "./pages/Torneos/TorneoInscripcionPage";
 import EquiposPlantelesAdminPage from "./pages/Torneos/EquiposPlantelesAdminPage";
+import AltaEquipoSuperAdminPage from "./pages/Torneos/AltaEquipoSuperAdminPage";
 import DelegadoGestionEquiposPage from "./pages/Torneos/DelegadoGestionEquiposPage";
 import PartidoPublicoPage from "./pages/Torneos/PartidoPublicoPage";
+import WidgetsTransmisionPage from "./pages/Torneos/WidgetsTransmisionPage";
 import SedesAdminPage from "./pages/Torneos/SedesAdminPage";
 import CalendarioPage from "./pages/Calendario/CalendarioPage";
 import OrganizacionesPage from "./pages/Organizaciones/OrganizacionesPage";
@@ -42,7 +44,6 @@ import NoticiasPage from "./pages/Noticias/NoticiasPage";
 import NoticiaDetalle from "./pages/Noticias/NoticiaDetalle";
 import NoticiasAdminPage from "./pages/Noticias/NoticiasAdminPage";
 import NoticiasAdminForm from "./pages/Noticias/NoticiasAdminForm";
-
 const DashboardHome = () => {
   const { user, can } = useAuth();
 
@@ -89,9 +90,10 @@ function App() {
       <AuthProvider>
         <ConfirmProvider>
           <ToastProvider>
-            <Navbar />
-            <main className="min-h-screen">
-              <Routes>
+            <div className="min-h-screen flex flex-col">
+              <Navbar />
+              <main className="flex-1 flex flex-col min-h-0 w-full">
+                <Routes>
                 {/* Rutas Públicas */}
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
@@ -154,6 +156,10 @@ function App() {
                   {/* Otros Módulos */}
                   <Route path="torneos" element={<TorneosPage />} />
                   <Route
+                    path="widgets-transmision"
+                    element={<WidgetsTransmisionPage />}
+                  />
+                  <Route
                     path="gestion-equipos"
                     element={<DelegadoGestionEquiposPage />}
                   />
@@ -164,6 +170,10 @@ function App() {
                   <Route
                     path="torneos/equipos"
                     element={<EquiposPlantelesAdminPage />}
+                  />
+                  <Route
+                    path="torneos/alta-equipo-superadmin"
+                    element={<AltaEquipoSuperAdminPage />}
                   />
                   <Route path="torneos/sedes" element={<SedesAdminPage />} />
                   <Route path="torneos/nuevo" element={<TorneoCreatePage />} />
@@ -203,9 +213,10 @@ function App() {
                 />
 
                 <Route path="*" element={<Home />} />
-              </Routes>
-            </main>
-            <Footer />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
           </ToastProvider>
         </ConfirmProvider>
       </AuthProvider>

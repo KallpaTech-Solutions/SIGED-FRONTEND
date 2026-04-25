@@ -11,6 +11,8 @@ import {
   StopCircle,
   ClipboardPlus,
   MapPin,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   fetchMatchPublicDetailEnriched,
@@ -20,11 +22,17 @@ import {
 import {
   MATCH_EVENT_TYPE,
   MATCH_STATUS,
+  deleteMatchEvent,
+  patchMatchEvent,
   patchMatchFinish,
   patchMatchSchedule,
   patchMatchStatus,
   postMatchEvent,
 } from "../../api/matchesControlService";
+import { MatchBroadcastHero } from "../../components/matchBroadcast/MatchBroadcastHero";
+import { MatchBroadcastMesaControls } from "../../components/matchBroadcast/MatchBroadcastMesaControls";
+import { ZonaHorariaWidget } from "../../components/dev/ZonaHorariaWidget";
+import { ZonaHorariaPublicBanner } from "../../components/dev/ZonaHorariaPublicBanner";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useConfirm } from "../../context/ConfirmContext";
@@ -34,10 +42,16 @@ import {
   tournamentPublicLabel,
 } from "../../utils/tournamentPublicStatus";
 import {
+  BROADCAST_TEMPLATE,
+  eventMinutePeriodFromBroadcastWidget,
+  parseMatchBroadcastWidgetFromDetail,
+} from "../../utils/matchBroadcastWidget";
+import { isPublicMatchInPeriodBreak } from "../../utils/matchBroadcastPeriodBreak";
+import {
   computeMatchClockDisplay,
-  computeSuggestedEventMinutePeriod,
   parseSportRulesFromDetail,
 } from "../../utils/matchClock";
+import { lastSubstitutionFromEvents } from "../../utils/matchSubstitutionFromEvents";
 
 function eventTypeLabel(type) {
   const t = String(type ?? "");
@@ -49,6 +63,9 @@ function eventTypeLabel(type) {
     TarjetaRoja: "Tarjeta roja",
     Sustitucion: "Cambio",
     Falta: "Falta",
+    Offside: "Fuera de juego",
+    Tiro: "Tiro",
+    TiroAPuerta: "Tiro a puerta",
     InicioPeriodo: "Inicio de periodo",
     FinPeriodo: "Fin de periodo",
   };
@@ -71,8 +88,11 @@ function statusLabel(s) {
 }
 
 function isLiveStatus(s) {
-  const x = String(s ?? "");
-  return x === "EnVivo" || x === "1" || s === 1;
+  if (s === 1) return true;
+  const x = String(s ?? "").trim();
+  if (x === "1") return true;
+  const norm = x.replace(/\s+/g, "");
+  return norm === "EnVivo" || norm.toLowerCase() === "envivo";
 }
 
 function isFinalStatus(s) {
@@ -96,11 +116,14 @@ function detailTeamIds(d) {
 const EVENT_TYPE_OPTIONS = [
   { value: MATCH_EVENT_TYPE.Goal, label: "Gol" },
   { value: MATCH_EVENT_TYPE.Puntaje, label: "Punto / canasta (valor configurable)" },
-  { value: MATCH_EVENT_TYPE.PenaltyGoal, label: "Gol de penal" },
+  { value: MATCH_EVENT_TYPE.PenaltyGoal, label: "Penal" },
   { value: MATCH_EVENT_TYPE.TarjetaAmarilla, label: "Tarjeta amarilla" },
   { value: MATCH_EVENT_TYPE.TarjetaRoja, label: "Tarjeta roja" },
   { value: MATCH_EVENT_TYPE.Sustitucion, label: "Sustitución" },
   { value: MATCH_EVENT_TYPE.Falta, label: "Falta" },
+  { value: MATCH_EVENT_TYPE.Offside, label: "Fuera de juego" },
+  { value: MATCH_EVENT_TYPE.Tiro, label: "Tiro (estadística)" },
+  { value: MATCH_EVENT_TYPE.TiroAPuerta, label: "Tiro a puerta" },
   { value: MATCH_EVENT_TYPE.InicioPeriodo, label: "Inicio de periodo" },
   { value: MATCH_EVENT_TYPE.FinPeriodo, label: "Fin de periodo" },
 ];
@@ -110,13 +133,42 @@ function eventTypeUsesScoreValue(type) {
   return t === MATCH_EVENT_TYPE.Goal || t === MATCH_EVENT_TYPE.Puntaje;
 }
 
-/** Valor para input type="datetime-local" en hora local del dispositivo. */
+function eventTypeFromApi(evType) {
+  if (typeof evType === "number" && Number.isFinite(evType)) return evType;
+  const s = String(evType ?? "");
+  const map = {
+    Goal: MATCH_EVENT_TYPE.Goal,
+    Puntaje: MATCH_EVENT_TYPE.Puntaje,
+    PenaltyGoal: MATCH_EVENT_TYPE.PenaltyGoal,
+    TarjetaAmarilla: MATCH_EVENT_TYPE.TarjetaAmarilla,
+    TarjetaRoja: MATCH_EVENT_TYPE.TarjetaRoja,
+    Sustitucion: MATCH_EVENT_TYPE.Sustitucion,
+    Falta: MATCH_EVENT_TYPE.Falta,
+    Offside: MATCH_EVENT_TYPE.Offside,
+    Tiro: MATCH_EVENT_TYPE.Tiro,
+    TiroAPuerta: MATCH_EVENT_TYPE.TiroAPuerta,
+    InicioPeriodo: MATCH_EVENT_TYPE.InicioPeriodo,
+    FinPeriodo: MATCH_EVENT_TYPE.FinPeriodo,
+  };
+  return map[s] ?? 0;
+}
+
+/** Fecha “fantasma” de .NET (DateTime.MinValue) u otra sentinela: no programación real. */
+function isPlaceholderScheduledDate(iso) {
+  if (iso == null || iso === "") return true;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return true;
+  return d.getFullYear() < 1900;
+}
+
+/** Valor para input type="datetime-local" (exige año yyyy de 4 dígitos; evita "1-01-01T00:00"). */
 function scheduledAtToDatetimeLocal(iso) {
-  if (!iso) return "";
+  if (isPlaceholderScheduledDate(iso)) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const y = d.getFullYear();
+  return `${String(y).padStart(4, "0")}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /**
@@ -137,7 +189,11 @@ export default function PartidoPublicoPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const canMatchControl = can("tourn.match.control");
+  const canBroadcastWidgets = can("tourn.match.widgets");
   const canManageTourn = can("tourn.manage");
+  /** Mesa / admin: API con JWT evita 404 del endpoint público (p. ej. IsActive). */
+  const preferMesaDetail =
+    canMatchControl || canManageTourn || canBroadcastWidgets;
 
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -145,15 +201,22 @@ export default function PartidoPublicoPage() {
   const [mesaBusy, setMesaBusy] = useState(false);
 
   const [eventBusy, setEventBusy] = useState(false);
+  const [eventEditBusy, setEventEditBusy] = useState(false);
   const [eventForm, setEventForm] = useState({
     type: MATCH_EVENT_TYPE.Goal,
     teamSide: "local",
     value: 0,
     note: "",
     playerId: "",
+    relatedPlayerId: "",
   });
   const [roster, setRoster] = useState([]);
+  const [homeRoster, setHomeRoster] = useState([]);
+  const [awayRoster, setAwayRoster] = useState([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [dualRosterLoading, setDualRosterLoading] = useState(false);
+  /** @type {null | { id: string, numericType: number, playerId: string, relatedPlayerId: string, note: string, teamId: string }} */
+  const [eventEditDraft, setEventEditDraft] = useState(null);
 
   const [venues, setVenues] = useState([]);
   const [scheduleBusy, setScheduleBusy] = useState(false);
@@ -164,12 +227,27 @@ export default function PartidoPublicoPage() {
   const reloadDetail = useCallback(async () => {
     if (!matchId) return;
     try {
-      const d = await fetchMatchPublicDetailEnriched(matchId);
+      const d = await fetchMatchPublicDetailEnriched(matchId, {
+        preferMesaDetail,
+      });
       setDetail(d);
     } catch {
       toast("No se pudo actualizar el partido.", "error");
     }
-  }, [matchId, toast]);
+  }, [matchId, preferMesaDetail, toast]);
+
+  /** Polling suave para vitrina (sin JWT): mismo criterio que ZonaHoraria si SignalR falla o se pierde un mensaje. */
+  const pollDetailQuiet = useCallback(async () => {
+    if (!matchId) return;
+    try {
+      const d = await fetchMatchPublicDetailEnriched(matchId, {
+        preferMesaDetail,
+      });
+      setDetail(d);
+    } catch {
+      /* sin toast: evita spam en fondo */
+    }
+  }, [matchId, preferMesaDetail]);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,7 +256,9 @@ export default function PartidoPublicoPage() {
       setLoading(true);
       setError(null);
       try {
-        const d = await fetchMatchPublicDetailEnriched(matchId);
+        const d = await fetchMatchPublicDetailEnriched(matchId, {
+          preferMesaDetail,
+        });
         if (!cancelled) setDetail(d);
       } catch (e) {
         if (!cancelled) {
@@ -195,52 +275,87 @@ export default function PartidoPublicoPage() {
     return () => {
       cancelled = true;
     };
-  }, [matchId]);
+  }, [matchId, preferMesaDetail]);
 
   const hubOk = !loading && !error && !!detail;
-  useMatchPublicDetailHub(matchId, hubOk, setDetail);
+  useMatchPublicDetailHub(matchId, hubOk, setDetail, preferMesaDetail);
 
   const events = detail?.events ?? detail?.Events ?? [];
   const statusRaw = detail?.status ?? detail?.Status;
   const live = detail && isLiveStatus(statusRaw);
 
-  const [clockNowMs, setClockNowMs] = useState(() => Date.now());
-  const sportRulesParsed = useMemo(
-    () => parseSportRulesFromDetail(detail),
+  useEffect(() => {
+    if (!hubOk || !live || preferMesaDetail) return undefined;
+    const id = window.setInterval(() => void pollDetailQuiet(), 8000);
+    return () => window.clearInterval(id);
+  }, [hubOk, live, preferMesaDetail, pollDetailQuiet]);
+
+  const [eventClockMs, setEventClockMs] = useState(() => Date.now());
+  const broadcastWidgetState = useMemo(
+    () => parseMatchBroadcastWidgetFromDetail(detail),
     [detail]
   );
 
-  /** Tick cada segundo mientras haya duración de periodo (también si antes se detectaba mal el futsal). */
   useEffect(() => {
-    if (!live || !sportRulesParsed.periodDurationMin) {
-      return undefined;
-    }
-    const id = setInterval(() => setClockNowMs(Date.now()), 1000);
+    if (!live) return undefined;
+    const tick = () => setEventClockMs(Date.now());
+    tick();
+    const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [live, sportRulesParsed.periodDurationMin]);
+  }, [live]);
 
-  const matchClock = useMemo(
+  /** Al volver a la pestaña o recuperar red, refrescar detalle + eventos (otra máquina pudo cargar datos). */
+  useEffect(() => {
+    if (!live || !matchId) return undefined;
+    const sync = () => {
+      if (document.visibilityState !== "visible") return;
+      reloadDetail();
+    };
+    const onOnline = () => reloadDetail();
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener("online", onOnline);
+    return () => {
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [live, matchId, reloadDetail]);
+
+  const eventTiming = useMemo(
+    () => eventMinutePeriodFromBroadcastWidget(broadcastWidgetState, eventClockMs),
+    [broadcastWidgetState, eventClockMs]
+  );
+
+  const inPeriodBreak = useMemo(
+    () => isPublicMatchInPeriodBreak(!!live, events),
+    [live, events]
+  );
+
+  const sportRules = useMemo(() => parseSportRulesFromDetail(detail), [detail]);
+
+  const matchClockDisplay = useMemo(
     () =>
       computeMatchClockDisplay({
         isLive: !!live,
-        rules: sportRulesParsed,
+        rules: sportRules,
         events,
-        nowMs: clockNowMs,
+        nowMs: eventClockMs,
+        clockAccumulatedSeconds:
+          detail?.clockAccumulatedSeconds ?? detail?.ClockAccumulatedSeconds,
+        clockPeriodAnchorUtc:
+          detail?.clockPeriodAnchorUtc ?? detail?.ClockPeriodAnchorUtc,
+        clockWidgetKind: detail?.clockWidgetKind ?? detail?.ClockWidgetKind,
       }),
-    [live, sportRulesParsed, events, clockNowMs]
+    [live, sportRules, events, eventClockMs, detail]
   );
 
-  const eventTiming = useMemo(
-    () =>
-      computeSuggestedEventMinutePeriod({
-        isLive: !!live,
-        rules: sportRulesParsed,
-        events,
-        nowMs: clockNowMs,
-        eventType: eventForm.type,
-      }),
-    [live, sportRulesParsed, events, clockNowMs, eventForm.type]
-  );
+  const broadcastWidgetForVitrina = useMemo(() => {
+    const w = broadcastWidgetState;
+    if (!detail || w.template !== BROADCAST_TEMPLATE.Soccer) return w;
+    const lh = Number(detail.localScore ?? detail.LocalScore ?? 0);
+    const va = Number(detail.visitorScore ?? detail.VisitorScore ?? 0);
+    return { ...w, sport: { ...w.sport, scoreHome: lh, scoreAway: va } };
+  }, [broadcastWidgetState, detail]);
+
   const finished = detail && isFinalStatus(statusRaw);
   const suspended = detail && isSuspendedStatus(statusRaw);
   const tournamentStatusRaw =
@@ -277,6 +392,67 @@ export default function PartidoPublicoPage() {
       cancelled = true;
     };
   }, [canMatchControl, live, finished, selectedTeamId]);
+
+  useEffect(() => {
+    if (!canMatchControl || !live || finished || !localId || !visitorId) {
+      setHomeRoster([]);
+      setAwayRoster([]);
+      return;
+    }
+    let cancelled = false;
+    setDualRosterLoading(true);
+    (async () => {
+      try {
+        const [homeTeam, awayTeam] = await Promise.all([
+          fetchPublicTeamRoster(localId),
+          fetchPublicTeamRoster(visitorId),
+        ]);
+        const h = homeTeam?.players ?? homeTeam?.Players ?? [];
+        const a = awayTeam?.players ?? awayTeam?.Players ?? [];
+        if (!cancelled) {
+          setHomeRoster(Array.isArray(h) ? h : []);
+          setAwayRoster(Array.isArray(a) ? a : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setHomeRoster([]);
+          setAwayRoster([]);
+        }
+      } finally {
+        if (!cancelled) setDualRosterLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canMatchControl, live, finished, localId, visitorId]);
+
+  const substitutionFromActa = useMemo(
+    () => lastSubstitutionFromEvents(events, localId, visitorId),
+    [events, localId, visitorId]
+  );
+
+  const homeEvents = useMemo(() => {
+    if (!localId) return [];
+    const id = String(localId);
+    return events.filter((ev) => String(ev.teamId ?? ev.TeamId ?? "") === id);
+  }, [events, localId]);
+
+  const awayEvents = useMemo(() => {
+    if (!visitorId) return [];
+    const id = String(visitorId);
+    return events.filter((ev) => String(ev.teamId ?? ev.TeamId ?? "") === id);
+  }, [events, visitorId]);
+
+  const eventsSinEquipo = useMemo(() => {
+    const known = new Set(
+      [localId, visitorId].filter(Boolean).map((x) => String(x))
+    );
+    return events.filter((ev) => {
+      const tid = String(ev.teamId ?? ev.TeamId ?? "");
+      return tid !== "" && !known.has(tid);
+    });
+  }, [events, localId, visitorId]);
 
   useEffect(() => {
     scheduleInitForMatchRef.current = null;
@@ -333,7 +509,7 @@ export default function PartidoPublicoPage() {
     const ok = await confirm({
       title: "Pausar transmisión",
       message:
-        "El partido deja de estar en vivo y vuelve a Programado (podés reanudar la transmisión después). ¿Confirmás?",
+        "El partido deja de estar en vivo y vuelve a Programado. ¿Confirmás?",
       confirmText: "Pausar",
       variant: "default",
     });
@@ -410,15 +586,7 @@ export default function PartidoPublicoPage() {
   const handleRegisterEvent = async (e) => {
     e.preventDefault();
     if (!matchId || eventBusy || !live || finished) return;
-    const { minute: minuteNum, period: periodNum } = sportRulesParsed.periodDurationMin
-      ? computeSuggestedEventMinutePeriod({
-          isLive: !!live,
-          rules: sportRulesParsed,
-          events,
-          nowMs: Date.now(),
-          eventType: eventForm.type,
-        })
-      : { minute: 0, period: 1 };
+    const { minute: minuteNum, period: periodNum } = eventTiming;
     if (!selectedTeamId) {
       toast("Faltan los equipos en el partido para registrar el evento.", "error");
       return;
@@ -440,6 +608,11 @@ export default function PartidoPublicoPage() {
       note: eventForm.note?.trim() ? eventForm.note.trim() : null,
       playerId: eventForm.playerId ? eventForm.playerId : null,
     };
+    if (Number(eventForm.type) === MATCH_EVENT_TYPE.Sustitucion) {
+      payload.relatedPlayerId = eventForm.relatedPlayerId
+        ? eventForm.relatedPlayerId
+        : null;
+    }
     setEventBusy(true);
     try {
       await postMatchEvent(matchId, payload);
@@ -448,6 +621,7 @@ export default function PartidoPublicoPage() {
         ...f,
         note: "",
         playerId: "",
+        relatedPlayerId: "",
         value: 0,
       }));
       await reloadDetail();
@@ -456,6 +630,63 @@ export default function PartidoPublicoPage() {
         err?.response?.data?.message ||
           err?.response?.data ||
           "No se pudo registrar el evento.",
+        "error"
+      );
+    } finally {
+      setEventBusy(false);
+    }
+  };
+
+  const handleSaveEventEdit = async (e) => {
+    e.preventDefault();
+    if (!eventEditDraft?.id || eventEditBusy) return;
+    setEventEditBusy(true);
+    try {
+      const body = {
+        playerId: eventEditDraft.playerId || null,
+        note: eventEditDraft.note?.trim() ? eventEditDraft.note.trim() : null,
+      };
+      if (eventEditDraft.numericType === MATCH_EVENT_TYPE.Sustitucion) {
+        body.relatedPlayerId = eventEditDraft.relatedPlayerId || null;
+      }
+      await patchMatchEvent(eventEditDraft.id, body);
+      toast("Evento actualizado.", "success");
+      setEventEditDraft(null);
+      await reloadDetail();
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo actualizar el evento.",
+        "error"
+      );
+    } finally {
+      setEventEditBusy(false);
+    }
+  };
+
+  const handleDeleteEvent = async (ev) => {
+    const eid = ev?.id ?? ev?.Id;
+    if (!eid || eventBusy || eventEditBusy) return;
+    const ok = await confirm({
+      title: "Anular evento",
+      message:
+        "Se elimina del acta y, si era gol o punto, se corrige el marcador. ¿Continuar?",
+      confirmText: "Anular",
+      variant: "danger",
+    });
+    if (!ok) return;
+    setEventBusy(true);
+    try {
+      await deleteMatchEvent(String(eid));
+      toast("Evento anulado.", "success");
+      setEventEditDraft(null);
+      await reloadDetail();
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo anular el evento.",
         "error"
       );
     } finally {
@@ -496,9 +727,83 @@ export default function PartidoPublicoPage() {
     }
   };
 
+  const renderEventRow = (ev) => {
+    const eid = ev.id ?? ev.Id;
+    const isSub =
+      eventTypeFromApi(ev.type ?? ev.Type) === MATCH_EVENT_TYPE.Sustitucion;
+    return (
+      <li
+        key={eid}
+        className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm shadow-sm"
+      >
+        <span className="text-[11px] font-mono font-bold text-slate-400 shrink-0">
+          {ev.period ? `P${ev.period}` : ""} {ev.minute != null ? `${ev.minute}′` : "—"}
+        </span>
+        <span className="font-semibold text-emerald-800 shrink-0">
+          {eventTypeLabel(ev.type)}
+        </span>
+        <span className="text-slate-700">{ev.teamName}</span>
+        {isSub ? (
+          <span className="text-slate-600 text-xs">
+            Sale: {ev.playerName || "—"} · Entra:{" "}
+            {(ev.relatedPlayerName ?? ev.RelatedPlayerName) || "—"}
+          </span>
+        ) : (
+          ev.playerName && <span className="text-slate-600">· {ev.playerName}</span>
+        )}
+        {ev.value > 1 && (
+          <span className="text-xs text-slate-500">(×{ev.value})</span>
+        )}
+        {ev.note && (
+          <span className="text-slate-500 w-full text-xs italic">{ev.note}</span>
+        )}
+        {canMatchControl && live && !finished && (
+          <span className="w-full flex flex-wrap gap-2 mt-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={eventBusy || eventEditBusy}
+              onClick={() => {
+                const tid = String(ev.teamId ?? ev.TeamId ?? "");
+                setEventEditDraft({
+                  id: String(eid),
+                  numericType: eventTypeFromApi(ev.type ?? ev.Type),
+                  playerId: ev.playerId
+                    ? String(ev.playerId)
+                    : ev.PlayerId
+                      ? String(ev.PlayerId)
+                      : "",
+                  relatedPlayerId: ev.relatedPlayerId
+                    ? String(ev.relatedPlayerId)
+                    : ev.RelatedPlayerId
+                      ? String(ev.RelatedPlayerId)
+                      : "",
+                  note: ev.note ?? ev.Note ?? "",
+                  teamId: tid,
+                });
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Editar
+            </button>
+            <button
+              type="button"
+              disabled={eventBusy || eventEditBusy}
+              onClick={() => handleDeleteEvent(ev)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-red-200 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Anular
+            </button>
+          </span>
+        )}
+      </li>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-inter">
-      <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-8 md:py-10">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-white text-slate-900 font-inter relative">
+      <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-8 md:py-10 pt-20 sm:pt-16">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-6 text-sm font-semibold text-emerald-200">
             <Link
@@ -564,29 +869,25 @@ export default function PartidoPublicoPage() {
                   </span>
                 )}
               </div>
-              {matchClock.visible && (
-                <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-950/40 px-4 py-3 text-emerald-50">
-                  <div className="flex items-center gap-2 text-emerald-200/90">
-                    <Clock className="w-5 h-5 shrink-0" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider">
-                      {matchClock.periodLabel ?? `Periodo ${matchClock.period ?? "—"}`}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-2xl font-bold tabular-nums tracking-tight text-white">
-                      {matchClock.line}
-                    </p>
-                    {matchClock.hint ? (
-                      <p className="text-[11px] text-emerald-200/70 mt-0.5 max-w-md">
-                        {matchClock.hint}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              )}
+              <MatchBroadcastHero
+                widgetState={broadcastWidgetForVitrina}
+                live={!!live}
+                homeName={detail.localTeamName ?? ""}
+                awayName={detail.visitorTeamName ?? ""}
+                homeLogoUrl={detail.localTeamLogo ?? detail.LocalTeamLogo ?? ""}
+                awayLogoUrl={detail.visitorTeamLogo ?? detail.VisitorTeamLogo ?? ""}
+                officialHomeScore={detail.localScore ?? detail.LocalScore ?? 0}
+                officialAwayScore={detail.visitorScore ?? detail.VisitorScore ?? 0}
+                matchClockDisplay={matchClockDisplay}
+                sportRules={sportRules}
+                inPeriodBreak={inPeriodBreak}
+                substitutionFromActa={substitutionFromActa}
+              />
               <p className="text-sm text-emerald-100/85">
                 {statusLabel(detail.status)}
-                {(detail.scheduledAt ?? detail.ScheduledAt) && (
+                {!isPlaceholderScheduledDate(
+                  detail.scheduledAt ?? detail.ScheduledAt
+                ) && (
                   <span className="ml-2 inline-flex items-center gap-1 opacity-90">
                     <Clock className="w-3.5 h-3.5" />
                     {new Date(
@@ -720,6 +1021,17 @@ export default function PartidoPublicoPage() {
               )}
             </div>
 
+            {live && !finished && matchId && (canMatchControl || canBroadcastWidgets) && (
+              <MatchBroadcastMesaControls
+                matchId={matchId}
+                detail={detail}
+                live={live}
+                mesaBusy={mesaBusy}
+                onSaved={reloadDetail}
+                toast={toast}
+              />
+            )}
+
             {!finished && (
               <form
                 onSubmit={handleSaveSchedule}
@@ -803,47 +1115,6 @@ export default function PartidoPublicoPage() {
       {!loading && detail && (
         <div className="bg-slate-50 border-t border-slate-100">
           <div className="container mx-auto px-4 max-w-3xl py-10">
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-                <div className="w-16 h-16 mx-auto rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center mb-3">
-                  {detail.localTeamLogo ? (
-                    <img
-                      src={detail.localTeamLogo}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs font-bold text-slate-400">LOC</span>
-                  )}
-                </div>
-                <p className="font-bold text-slate-900 text-sm leading-tight">
-                  {detail.localTeamName}
-                </p>
-                <p className="text-3xl font-black text-slate-900 tabular-nums mt-2">
-                  {detail.localScore ?? 0}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-                <div className="w-16 h-16 mx-auto rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center mb-3">
-                  {detail.visitorTeamLogo ? (
-                    <img
-                      src={detail.visitorTeamLogo}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-xs font-bold text-slate-400">VIS</span>
-                  )}
-                </div>
-                <p className="font-bold text-slate-900 text-sm leading-tight">
-                  {detail.visitorTeamName}
-                </p>
-                <p className="text-3xl font-black text-slate-900 tabular-nums mt-2">
-                  {detail.visitorScore ?? 0}
-                </p>
-              </div>
-            </div>
-
             <h2 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
               <ListOrdered className="w-4 h-4 text-emerald-600" />
               Eventos del partido
@@ -870,6 +1141,9 @@ export default function PartidoPublicoPage() {
                           ...f,
                           type: v,
                           value: eventTypeUsesScoreValue(v) ? f.value : 0,
+                          relatedPlayerId:
+                            v === MATCH_EVENT_TYPE.Sustitucion ? f.relatedPlayerId : "",
+                          playerId: v === MATCH_EVENT_TYPE.Sustitucion ? f.playerId : f.playerId,
                         }));
                       }}
                     >
@@ -890,6 +1164,7 @@ export default function PartidoPublicoPage() {
                           ...f,
                           teamSide: ev.target.value,
                           playerId: "",
+                          relatedPlayerId: "",
                         }))
                       }
                     >
@@ -901,7 +1176,7 @@ export default function PartidoPublicoPage() {
                   </label>
                   <div className="block text-sm sm:col-span-2">
                     <span className="text-slate-600 font-medium">
-                      Minuto y periodo (automático según cronómetro)
+                      Minuto y periodo (widget de transmisión)
                     </span>
                     <div className="mt-1 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200/80 bg-white px-3 py-2.5 text-sm tabular-nums">
                       <span className="font-bold text-slate-900">
@@ -911,18 +1186,10 @@ export default function PartidoPublicoPage() {
                       <span className="font-bold text-slate-900">
                         Periodo {eventTiming.period}
                       </span>
-                      {!sportRulesParsed.periodDurationMin && (
-                        <span className="text-xs text-slate-600">
-                          (sin PERIOD_DURATION en reglas — se usa 0 / 1)
-                        </span>
-                      )}
-                      {sportRulesParsed.periodDurationMin &&
-                        matchClock.phase === "interval" && (
-                        <span className="text-xs text-amber-700 font-medium">
-                          (descanso — al registrar «Inicio de periodo» se usará el
-                          siguiente tiempo)
-                        </span>
-                      )}
+                      <span className="text-xs text-slate-600">
+                        El minuto sigue el cronómetro del widget; el periodo se
+                        edita en «Widget de transmisión».
+                      </span>
                     </div>
                   </div>
                   {eventTypeUsesScoreValue(eventForm.type) && (
@@ -942,32 +1209,88 @@ export default function PartidoPublicoPage() {
                       />
                     </label>
                   )}
-                  <label className="block text-sm sm:col-span-2">
-                    <span className="text-slate-600 font-medium">
-                      Jugador (opcional)
-                    </span>
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                      value={eventForm.playerId}
-                      onChange={(ev) =>
-                        setEventForm((f) => ({ ...f, playerId: ev.target.value }))
-                      }
-                      disabled={rosterLoading}
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {roster.map((p) => {
-                        const pid = p.id ?? p.Id;
-                        const pname = p.name ?? p.Name ?? "";
-                        const num = p.number ?? p.Number;
-                        return (
-                          <option key={pid} value={pid}>
-                            {num != null && num !== "" ? `#${num} ` : ""}
-                            {pname}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
+                  {Number(eventForm.type) === MATCH_EVENT_TYPE.Sustitucion ? (
+                    <>
+                      <label className="block text-sm sm:col-span-2">
+                        <span className="text-slate-600 font-medium">Sale (opcional)</span>
+                        <select
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                          value={eventForm.playerId}
+                          onChange={(ev) =>
+                            setEventForm((f) => ({ ...f, playerId: ev.target.value }))
+                          }
+                          disabled={rosterLoading}
+                        >
+                          <option value="">— Sin asignar —</option>
+                          {roster.map((p) => {
+                            const pid = p.id ?? p.Id;
+                            const pname = p.name ?? p.Name ?? "";
+                            const num = p.number ?? p.Number;
+                            return (
+                              <option key={pid} value={pid}>
+                                {num != null && num !== "" ? `#${num} ` : ""}
+                                {pname}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+                      <label className="block text-sm sm:col-span-2">
+                        <span className="text-slate-600 font-medium">Entra (opcional)</span>
+                        <select
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                          value={eventForm.relatedPlayerId}
+                          onChange={(ev) =>
+                            setEventForm((f) => ({
+                              ...f,
+                              relatedPlayerId: ev.target.value,
+                            }))
+                          }
+                          disabled={rosterLoading}
+                        >
+                          <option value="">— Sin asignar —</option>
+                          {roster.map((p) => {
+                            const pid = p.id ?? p.Id;
+                            const pname = p.name ?? p.Name ?? "";
+                            const num = p.number ?? p.Number;
+                            return (
+                              <option key={`in-${pid}`} value={pid}>
+                                {num != null && num !== "" ? `#${num} ` : ""}
+                                {pname}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </label>
+                    </>
+                  ) : (
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slate-600 font-medium">
+                        Jugador (opcional)
+                      </span>
+                      <select
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                        value={eventForm.playerId}
+                        onChange={(ev) =>
+                          setEventForm((f) => ({ ...f, playerId: ev.target.value }))
+                        }
+                        disabled={rosterLoading}
+                      >
+                        <option value="">— Sin asignar —</option>
+                        {roster.map((p) => {
+                          const pid = p.id ?? p.Id;
+                          const pname = p.name ?? p.Name ?? "";
+                          const num = p.number ?? p.Number;
+                          return (
+                            <option key={pid} value={pid}>
+                              {num != null && num !== "" ? `#${num} ` : ""}
+                              {pname}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  )}
                   <label className="block text-sm sm:col-span-2">
                     <span className="text-slate-600 font-medium">Nota (opcional)</span>
                     <input
@@ -1006,40 +1329,207 @@ export default function PartidoPublicoPage() {
                 Aún no hay eventos registrados en este partido.
               </div>
             ) : (
-              <ol className="space-y-2">
-                {events.map((ev) => (
-                  <li
-                    key={ev.id}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm shadow-sm"
-                  >
-                    <span className="text-[11px] font-mono font-bold text-slate-400 shrink-0">
-                      {ev.period ? `P${ev.period}` : ""}{" "}
-                      {ev.minute != null ? `${ev.minute}′` : "—"}
-                    </span>
-                    <span className="font-semibold text-emerald-800 shrink-0">
-                      {eventTypeLabel(ev.type)}
-                    </span>
-                    <span className="text-slate-700">{ev.teamName}</span>
-                    {ev.playerName && (
-                      <span className="text-slate-600">· {ev.playerName}</span>
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                      <div className="h-9 w-9 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                        {detail.localTeamLogo ? (
+                          <img
+                            src={detail.localTeamLogo}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">LOC</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-900 leading-tight">
+                        {detail.localTeamName}
+                      </p>
+                    </div>
+                    {homeEvents.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-2">Sin eventos de este equipo.</p>
+                    ) : (
+                      <ol className="space-y-2">{homeEvents.map(renderEventRow)}</ol>
                     )}
-                    {ev.value > 1 && (
-                      <span className="text-xs text-slate-500">
-                        (×{ev.value})
-                      </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                      <div className="h-9 w-9 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
+                        {detail.visitorTeamLogo ? (
+                          <img
+                            src={detail.visitorTeamLogo}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">VIS</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-900 leading-tight">
+                        {detail.visitorTeamName}
+                      </p>
+                    </div>
+                    {awayEvents.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-2">Sin eventos de este equipo.</p>
+                    ) : (
+                      <ol className="space-y-2">{awayEvents.map(renderEventRow)}</ol>
                     )}
-                    {ev.note && (
-                      <span className="text-slate-500 w-full text-xs italic">
-                        {ev.note}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ol>
+                  </div>
+                </div>
+                {eventsSinEquipo.length > 0 ? (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                      Otros eventos
+                    </p>
+                    <ol className="space-y-2">{eventsSinEquipo.map(renderEventRow)}</ol>
+                  </div>
+                ) : null}
+              </div>
             )}
+            {eventEditDraft && canMatchControl && live && !finished ? (
+              <form
+                onSubmit={handleSaveEventEdit}
+                className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3"
+              >
+                <p className="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  Corregir evento
+                </p>
+                {eventEditDraft.numericType === MATCH_EVENT_TYPE.Sustitucion ? (
+                  <div className="grid gap-3 sm:grid-cols-2 text-sm">
+                    <label className="block">
+                      <span className="text-slate-600 text-xs font-medium">Sale</span>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm"
+                        value={eventEditDraft.playerId}
+                        onChange={(e) =>
+                          setEventEditDraft((d) =>
+                            d ? { ...d, playerId: e.target.value } : d
+                          )
+                        }
+                        disabled={eventEditBusy || dualRosterLoading}
+                      >
+                        <option value="">—</option>
+                        {(String(eventEditDraft.teamId) === String(localId)
+                          ? homeRoster
+                          : awayRoster
+                        ).map((p) => {
+                          const pid = p.id ?? p.Id;
+                          const pname = p.name ?? p.Name ?? "";
+                          const num = p.number ?? p.Number;
+                          return (
+                            <option key={pid} value={pid}>
+                              {num != null && num !== "" ? `#${num} ` : ""}
+                              {pname}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-slate-600 text-xs font-medium">Entra</span>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm"
+                        value={eventEditDraft.relatedPlayerId}
+                        onChange={(e) =>
+                          setEventEditDraft((d) =>
+                            d ? { ...d, relatedPlayerId: e.target.value } : d
+                          )
+                        }
+                        disabled={eventEditBusy || dualRosterLoading}
+                      >
+                        <option value="">—</option>
+                        {(String(eventEditDraft.teamId) === String(localId)
+                          ? homeRoster
+                          : awayRoster
+                        ).map((p) => {
+                          const pid = p.id ?? p.Id;
+                          const pname = p.name ?? p.Name ?? "";
+                          const num = p.number ?? p.Number;
+                          return (
+                            <option key={`e-${pid}`} value={pid}>
+                              {num != null && num !== "" ? `#${num} ` : ""}
+                              {pname}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <label className="block text-sm">
+                    <span className="text-slate-600 text-xs font-medium">Jugador</span>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm"
+                      value={eventEditDraft.playerId}
+                      onChange={(e) =>
+                        setEventEditDraft((d) =>
+                          d ? { ...d, playerId: e.target.value } : d
+                        )
+                      }
+                      disabled={eventEditBusy || dualRosterLoading}
+                    >
+                      <option value="">—</option>
+                      {(String(eventEditDraft.teamId) === String(localId)
+                        ? homeRoster
+                        : awayRoster
+                      ).map((p) => {
+                        const pid = p.id ?? p.Id;
+                        const pname = p.name ?? p.Name ?? "";
+                        const num = p.number ?? p.Number;
+                        return (
+                          <option key={pid} value={pid}>
+                            {num != null && num !== "" ? `#${num} ` : ""}
+                            {pname}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                )}
+                <label className="block text-sm">
+                  <span className="text-slate-600 text-xs font-medium">Nota</span>
+                  <input
+                    type="text"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm"
+                    value={eventEditDraft.note}
+                    onChange={(e) =>
+                      setEventEditDraft((d) =>
+                        d ? { ...d, note: e.target.value } : d
+                      )
+                    }
+                    disabled={eventEditBusy}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="submit"
+                    disabled={eventEditBusy}
+                    className="px-3 py-2 rounded-xl bg-amber-700 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {eventEditBusy ? "Guardando…" : "Guardar cambios"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={eventEditBusy}
+                    onClick={() => setEventEditDraft(null)}
+                    className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </div>
         </div>
       )}
+      {broadcastWidgetState.showZonaHorariaOnMatch ? (
+        <>
+          <ZonaHorariaPublicBanner />
+          <ZonaHorariaWidget />
+        </>
+      ) : null}
     </div>
   );
 }

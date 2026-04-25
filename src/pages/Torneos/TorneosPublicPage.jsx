@@ -11,10 +11,7 @@ import {
   useTorneosVitrinaHub,
 } from "../../hooks/useTorneosVitrinaHub";
 
-/**
- * Dos fuentes: torneos + partidos para vitrina (GET /api/Matches/public/landing).
- * Si el deploy no tiene /landing aún, el carrusel queda en mock sin romper la página.
- */
+
 export default function TorneosPublicPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
@@ -69,7 +66,7 @@ export default function TorneosPublicPage() {
   }, []);
 
   return (
-    <div className="w-full min-h-screen bg-white font-inter text-slate-900">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-white font-inter text-slate-900">
       <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="rounded-[28px] bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-900 shadow-[0_24px_70px_rgba(15,23,42,0.35)] border border-emerald-500/25 px-6 py-6 md:px-10 md:py-8 text-white overflow-hidden relative">
@@ -92,7 +89,7 @@ export default function TorneosPublicPage() {
         </div>
       </section>
 
-      <div className="bg-slate-50 border-b border-slate-100">
+      <div className="flex-1 flex flex-col min-h-0 bg-slate-50 border-b border-slate-100">
         <div className="container mx-auto px-4 max-w-5xl py-8 md:py-10 space-y-10">
           {loading && (
             <div className="flex items-center justify-center gap-3 py-16 text-slate-500">
@@ -114,16 +111,7 @@ export default function TorneosPublicPage() {
                   Hoy · En vivo
                 </h2>
                 <p className="text-xs text-slate-500 max-w-2xl">
-                  Datos desde{" "}
-                  <code className="text-[11px] bg-slate-100 px-1 rounded">
-                    GET /api/Matches/public/landing
-                  </code>
-                  . SignalR (
-                  <code className="text-[11px] bg-slate-100 px-1 rounded">
-                    /tournamentHub
-                  </code>
-                  ) actualiza el marcador en caliente y, si el servidor avisa, vuelve a cargar la lista
-                  cuando hay partidos nuevos en la vitrina.
+                  Sigue el resultado de los partidos en vivo.
                 </p>
                 <LiveMatchesCarousel matches={landingMatches} />
               </section>
@@ -136,8 +124,7 @@ export default function TorneosPublicPage() {
                   <p className="text-xs text-slate-500 mt-1 max-w-2xl">
                     Solo torneos con{" "}
                     <span className="font-medium">IsActive</span> en el API; la
-                    grilla se refresca sola cuando hay altas o cambios de visibilidad
-                    (SignalR).
+                    grilla se refresca sola cuando hay altas o cambios de visibilidad.
                   </p>
                 </div>
                 <TournamentGrid tournaments={tournaments} />

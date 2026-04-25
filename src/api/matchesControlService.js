@@ -21,6 +21,35 @@ export async function patchMatchStatus(matchId, status) {
 }
 
 /**
+ * Pausar / reanudar solo el cronómetro (no cambia En vivo / Programado).
+ * @param {string} matchId
+ * @param {{ paused: boolean }} body
+ */
+export async function patchMatchClock(matchId, body) {
+  const { data } = await api.patch(`/Matches/${matchId}/chronometer/run`, body);
+  return data;
+}
+
+/**
+ * Mesa: cerrar periodo en juego y abrir el siguiente (o solo inicio si está en descanso). Respeta PERIODS_COUNT en servidor.
+ * @param {string} matchId
+ */
+export async function postAdvanceMatchPeriod(matchId) {
+  const { data } = await api.post(`/Matches/${matchId}/chronometer/advance-period`);
+  return data;
+}
+
+/**
+ * Tipo de widget de cronómetro para esta transmisión (MatchClockWidgetKind numérico).
+ * @param {string} matchId
+ * @param {number} kind
+ */
+export async function patchMatchChronometerWidget(matchId, kind) {
+  const { data } = await api.patch(`/Matches/${matchId}/chronometer/widget`, { kind });
+  return data;
+}
+
+/**
  * Finalizar partido (marcador, ganador, standings).
  * @param {string} matchId
  */
@@ -60,7 +89,20 @@ export const MATCH_EVENT_TYPE = {
   Falta: 7,
   InicioPeriodo: 8,
   FinPeriodo: 9,
+  Offside: 10,
+  Tiro: 11,
+  TiroAPuerta: 12,
 };
+
+/**
+ * Widget de transmisión (vitrina). Requiere tourn.mesa.broadcast (mesa o tourn.match.widgets).
+ * @param {string} matchId
+ * @param {object} state — ver `matchBroadcastWidget.js`
+ */
+export async function putMatchBroadcastWidget(matchId, state) {
+  const { data } = await api.put(`/Matches/${matchId}/broadcast-widget`, state);
+  return data;
+}
 
 /**
  * Registrar evento en el partido (gol, tarjeta, etc.). Requiere tourn.match.control.
@@ -69,5 +111,24 @@ export const MATCH_EVENT_TYPE = {
  */
 export async function postMatchEvent(matchId, body) {
   const { data } = await api.post(`/Matches/${matchId}/events`, body);
+  return data;
+}
+
+/**
+ * Corregir jugador/es o nota (JSON parcial: solo incluir claves a cambiar).
+ * @param {string} eventId
+ * @param {{ playerId?: string|null, relatedPlayerId?: string|null, note?: string|null }} body
+ */
+export async function patchMatchEvent(eventId, body) {
+  const { data } = await api.patch(`/Matches/events/${eventId}`, body);
+  return data;
+}
+
+/**
+ * Anular evento (revierte gol/puntaje en marcador si aplica).
+ * @param {string} eventId
+ */
+export async function deleteMatchEvent(eventId) {
+  const { data } = await api.delete(`/Matches/events/${eventId}`);
   return data;
 }

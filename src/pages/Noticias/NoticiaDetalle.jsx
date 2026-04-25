@@ -36,7 +36,7 @@ export default function NoticiaDetalle() {
 
   if (cargando) {
     return (
-      <div className="w-full min-h-[60vh] bg-slate-50 flex items-center justify-center">
+      <div className="w-full flex-1 min-h-0 bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-emerald-700 font-inter">
           <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
           <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-emerald-700/80">
@@ -110,7 +110,7 @@ export default function NoticiaDetalle() {
   };
 
   return (
-    <div className="w-full bg-slate-50 text-slate-900 font-inter">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-slate-50 text-slate-900 font-inter">
       {/* HERO CON ANCHO IGUAL AL CONTENIDO */}
       <section className="border-b border-slate-200 bg-slate-50">
         <div className="container mx-auto px-4 pt-6 pb-8 max-w-5xl">

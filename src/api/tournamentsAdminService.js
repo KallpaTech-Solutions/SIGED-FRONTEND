@@ -110,3 +110,31 @@ export async function setupCompetitionFormat(competitionId, body) {
   );
   return data;
 }
+
+/**
+ * Llave desde clasificados de fase de grupos (POST /api/Fixtures/generate-playoffs).
+ * @param {{
+ *   competitionId: string,
+ *   sourcePhaseId: string,
+ *   newPhaseName: string,
+ *   isDoubleLeg?: boolean,
+ *   manualPairings?: { localTeamId: string, visitorTeamId: string }[]
+ * }} body
+ */
+export async function generatePlayoffsFromGroups(body) {
+  const { data } = await api.post("/Fixtures/generate-playoffs", body);
+  return data;
+}
+
+/**
+ * Siguiente ronda eliminatoria desde ganadores finalizados (POST /api/Fixtures/promote-winners).
+ * @param {{
+ *   competitionId: string,
+ *   currentPhaseId: string,
+ *   nextPhaseName: string
+ * }} body
+ */
+export async function promoteKnockoutWinners(body) {
+  const { data } = await api.post("/Fixtures/promote-winners", body);
+  return data;
+}

@@ -87,12 +87,36 @@ const TOURNAMENT_STATUS_NAMES = [
 ];
 
 /**
+ * Carga detalle de partido: operadores con JWT usan /Matches/{id}/mesa-detail (sin filtrar IsActive);
+ * el resto usa el endpoint público.
+ */
+async function fetchMatchDetailForViewer(matchId, preferMesaDetail) {
+  if (!preferMesaDetail) {
+    return fetchMatchPublicDetail(matchId);
+  }
+  try {
+    const { data } = await api.get(`/Matches/${matchId}/mesa-detail`);
+    return data;
+  } catch (e) {
+    const s = e?.response?.status;
+    // 404: API vieja sin ruta mesa-detail, o mismo criterio que público; intentar vitrina pública.
+    if (s === 401 || s === 403 || s === 404) {
+      return fetchMatchPublicDetail(matchId);
+    }
+    throw e;
+  }
+}
+
+/**
  * Igual que fetchMatchPublicDetail pero, si faltan tournamentStatus / nombre,
  * completa con GET /Tournaments/{id} (público). Así la mesa ve "Activo" aunque
  * el API de partido venga sin esos campos o desactualizado.
+ * @param {string} matchId
+ * @param {{ preferMesaDetail?: boolean }} [options]
  */
-export async function fetchMatchPublicDetailEnriched(matchId) {
-  const data = await fetchMatchPublicDetail(matchId);
+export async function fetchMatchPublicDetailEnriched(matchId, options = {}) {
+  const { preferMesaDetail = false } = options;
+  const data = await fetchMatchDetailForViewer(matchId, preferMesaDetail);
   if (matchDetailHasTournamentLifecycle(data)) return data;
   const tid = data?.tournamentId ?? data?.TournamentId;
   if (!tid) return data;

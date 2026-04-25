@@ -64,7 +64,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8 animate-fade-in font-inter">
+    <div className="flex-1 min-h-0 bg-slate-50 flex items-center justify-center px-4 py-8 animate-fade-in font-inter">
       <div className="w-full max-w-md">
         <div className="rounded-2xl shadow-[0_18px_50px_rgba(15,23,42,0.16)] overflow-hidden border-2 border-emerald-400 bg-emerald-100">
           {/* Header institucional */}

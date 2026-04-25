@@ -15,7 +15,7 @@ function normStr(v) {
 }
 
 export default function EquiposPlantelesAdminPage() {
-  const { can } = useAuth();
+  const { can, hasRole } = useAuth();
   const puedeAdminTorneos = can("tourn.manage");
 
   const [loading, setLoading] = useState(true);
@@ -108,6 +108,16 @@ export default function EquiposPlantelesAdminPage() {
           Para gestionar torneos y eliminar registros, usá las pantallas de
           administración correspondientes.
         </p>
+        {hasRole("SuperAdmin") ? (
+          <p className="text-sm mt-2">
+            <Link
+              to="/PanelControl/torneos/alta-equipo-superadmin"
+              className="font-semibold text-violet-700 hover:underline"
+            >
+              Registrar equipo con delegado principal (SuperAdmin)
+            </Link>
+          </p>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap gap-4 items-end">

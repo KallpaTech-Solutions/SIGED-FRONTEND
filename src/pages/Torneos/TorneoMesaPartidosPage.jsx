@@ -38,6 +38,11 @@ function isLiveStatus(s) {
   return x === "EnVivo" || x === "1" || s === 1;
 }
 
+function isFinishedStatus(s) {
+  const x = String(s ?? "");
+  return x === "Finalizado" || x === "2" || s === 2;
+}
+
 /** Aplana partidos del public-dashboard de una competencia. */
 function matchesFromDashboard(dashboard, competitionLabel, competitionId) {
   if (!dashboard) return [];
@@ -79,6 +84,7 @@ function matchesFromDashboard(dashboard, competitionLabel, competitionId) {
           id: mid,
           status: m.status ?? m.Status,
           scheduledAt: m.scheduledAt ?? m.ScheduledAt,
+          venueName: m.venueName ?? m.VenueName,
           localTeamName: m.localTeamName ?? m.LocalTeamName,
           visitorTeamName: m.visitorTeamName ?? m.VisitorTeamName,
           localScore: m.localScore ?? m.LocalScore,
@@ -282,6 +288,7 @@ export default function TorneoMesaPartidosPage() {
           <ul className="divide-y divide-slate-100">
             {rows.map((r) => {
               const live = isLiveStatus(r.status);
+              const finished = isFinishedStatus(r.status);
               return (
                 <li
                   key={String(r.id)}
@@ -328,7 +335,15 @@ export default function TorneoMesaPartidosPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    {transmissionEnabled ? (
+                    {finished ? (
+                      <Link
+                        to={`/torneos/partido/${r.id}`}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold"
+                      >
+                        Ver detalles de transmisión
+                        <ArrowRight className="w-4 h-4 opacity-90" />
+                      </Link>
+                    ) : transmissionEnabled ? (
                       <Link
                         to={`/torneos/partido/${r.id}`}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold"

@@ -81,7 +81,7 @@ export default function OrganizacionDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-inter pb-16 relative overflow-x-hidden">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-[#f8fafc] font-inter pb-16 relative overflow-x-hidden">
       
       {/* 🖼️ VISUALIZADOR (LIGHTBOX) */}
       {selectedImage && (

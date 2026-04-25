@@ -111,7 +111,7 @@ export default function Home() {
   const current = heroSlides[visibleSlide];
 
   return (
-    <div className="w-full">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-background">
       {/* Hero Section con desvanecimiento y flechas */}
       <section
         className={`relative h-[52vh] md:h-[56vh] bg-gradient-to-r ${current.bgClass} overflow-hidden transition-colors duration-700`}

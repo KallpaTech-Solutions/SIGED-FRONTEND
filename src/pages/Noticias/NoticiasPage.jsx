@@ -215,7 +215,7 @@ export default function NoticiasPage() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full flex-1 flex flex-col min-h-0 bg-background">
       <section className="bg-gradient-to-r from-slate-900 via-emerald-900 to-emerald-700 border-b border-border/20 py-10 md:py-14">
         <div className="container mx-auto px-4 max-w-5xl">
           {/* Tarjeta flotante tipo carrusel (mensaje / noticia destacada) */}

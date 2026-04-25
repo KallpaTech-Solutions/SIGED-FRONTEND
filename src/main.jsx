@@ -1,10 +1,7 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+/* StrictMode desactivado: en desarrollo montaba/desmontaba dos veces y SignalR
+   cancelaba la negociación ("connection stopped during negotiation"). */
+createRoot(document.getElementById('root')).render(<App />)
