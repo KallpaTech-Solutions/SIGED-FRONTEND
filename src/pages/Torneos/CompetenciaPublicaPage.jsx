@@ -14,6 +14,7 @@ import {
   fetchPublicLandingMatchesByCompetition,
 } from "../../api/tournamentsPublicService";
 import CompetitionDashboard from "../../components/tournaments/CompetitionDashboard";
+import ChampionBanner from "../../components/tournaments/ChampionBanner";
 import LiveMatchesCarousel from "../../components/tournaments/LiveMatchesCarousel";
 import {
   buildLandingMatchIdsKey,
@@ -157,6 +158,47 @@ export default function CompetenciaPublicaPage() {
     ? `/torneos/torneo/${data.tournament.id}`
     : "/torneos";
 
+  const championBannerPayload = useMemo(() => {
+    if (!data) return null;
+    const team =
+      data.championTeam ??
+      data.ChampionTeam ??
+      null;
+    const teamId =
+      data.championTeamId ??
+      data.ChampionTeamId ??
+      team?.id ??
+      team?.Id ??
+      dashboard?.championTeamId ??
+      dashboard?.ChampionTeamId;
+    if (!teamId) return null;
+    const name =
+      team?.name ??
+      team?.Name ??
+      dashboard?.championTeamName ??
+      dashboard?.ChampionTeamName ??
+      null;
+    if (!name) return null;
+    const logoUrl =
+      team?.logoUrl ??
+      team?.LogoUrl ??
+      dashboard?.championTeamLogoUrl ??
+      dashboard?.ChampionTeamLogoUrl ??
+      null;
+    const competitionName =
+      (data.discipline?.name ?? data.Discipline?.name ?? "") +
+      (data.categoryName || data.CategoryName
+        ? ` · ${data.categoryName ?? data.CategoryName}`
+        : "");
+    return {
+      name,
+      logoUrl: logoUrl || undefined,
+      competitionName: competitionName.trim() || "Competencia",
+      tournamentName: data.tournament?.name ?? data.Tournament?.name,
+      year: data.tournament?.year ?? data.Tournament?.year,
+    };
+  }, [data, dashboard]);
+
   const tournamentStatusRaw =
     data?.tournament?.statusValue ??
     data?.tournament?.StatusValue ??
@@ -244,6 +286,9 @@ export default function CompetenciaPublicaPage() {
       {!loading && data && (
         <div className="bg-slate-50 border-t border-slate-100">
           <div className="container mx-auto px-4 max-w-5xl py-10 space-y-10">
+            {championBannerPayload ? (
+              <ChampionBanner champion={championBannerPayload} title="Campeón" />
+            ) : null}
             <section>
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-600" />

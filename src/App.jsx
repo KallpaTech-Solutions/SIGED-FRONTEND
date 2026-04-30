@@ -34,7 +34,7 @@ import DelegadoGestionEquiposPage from "./pages/Torneos/DelegadoGestionEquiposPa
 import PartidoPublicoPage from "./pages/Torneos/PartidoPublicoPage";
 import WidgetsTransmisionPage from "./pages/Torneos/WidgetsTransmisionPage";
 import SedesAdminPage from "./pages/Torneos/SedesAdminPage";
-import CalendarioPage from "./pages/Calendario/CalendarioPage";
+import CampeonesPublicPage from "./pages/Torneos/CampeonesPublicPage";
 import OrganizacionesPage from "./pages/Organizaciones/OrganizacionesPage";
 import EstudianteSummary from "./pages/Inicio/EstudianteSummary";
 import DelegadoSummary from "./pages/Inicio/DelegadoSummary";
@@ -104,6 +104,7 @@ function App() {
                 <Route path="/noticias" element={<NoticiasPage />} />
                 <Route path="/noticia/:slug" element={<NoticiaDetalle />} />
                 <Route path="/torneos" element={<TorneosPublicPage />} />
+                <Route path="/campeones" element={<CampeonesPublicPage />} />
                 <Route
                   path="/torneos/torneo/:tournamentId/inscripcion"
                   element={<TorneoInscripcionPage />}
@@ -121,7 +122,7 @@ function App() {
                   element={<EquipoPublicoPage />}
                 />
                 <Route path="/torneos/:id" element={<CompetenciaPublicaPage />} />
-                <Route path="/calendario" element={<CalendarioPage />} />
+                <Route path="/calendario" element={<Navigate to="/" replace />} />
 
                 {/* --- 🟢 PANEL ÚNICO (Consolidado y Protegido) --- */}
                 <Route

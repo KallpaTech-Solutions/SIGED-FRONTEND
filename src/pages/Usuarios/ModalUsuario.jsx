@@ -128,11 +128,18 @@ export default function ModalUsuario({ isOpen, onClose, onRefresh, editarUsuario
           ...basePayload,
           id: editarUsuario.id,
         };
-        await api.put(`/Usuarios/${editarUsuario.id}`, updatePayload);
+        const resUpdate = await api.put(`/Usuarios/${editarUsuario.id}`, updatePayload);
+        const rolGuardado = resUpdate?.data?.rol;
+        toast(
+          rolGuardado
+            ? `Usuario actualizado correctamente. Rol actual: ${rolGuardado}`
+            : 'Usuario actualizado correctamente',
+          'success'
+        );
       } else {
         await api.post('/Usuarios/registrar', basePayload);
+        toast('Usuario registrado correctamente', 'success');
       }
-      toast(editarUsuario ? 'Usuario actualizado correctamente' : 'Usuario registrado correctamente', 'success');
       onRefresh();
       onClose();
     } catch (error) {

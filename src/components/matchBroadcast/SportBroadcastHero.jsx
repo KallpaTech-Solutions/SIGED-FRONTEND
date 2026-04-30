@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, Clock } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Clock, X } from "lucide-react";
 import {
   BROADCAST_TEMPLATE,
   formatDurationMs,
@@ -72,6 +72,41 @@ function TeamShield({ url, abbrev, sizeClass = "h-12 w-12 md:h-14 md:w-14" }) {
         className="h-full w-full object-cover"
         onError={() => setBroken(true)}
       />
+    </div>
+  );
+}
+
+/** Tanda en tablero LED (✓ / ✗), orden = acta. */
+function PenaltyMarksLedRow({ label, marks }) {
+  if (!marks?.length) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
+      <span
+        className="text-[9px] font-bold uppercase text-slate-500 shrink-0 max-w-[32%] truncate"
+        title={label}
+      >
+        {label}
+      </span>
+      <div className="flex flex-wrap justify-center gap-1" role="list" aria-label={`Penales ${label}`}>
+        {marks.map((made, i) => (
+          <span
+            key={i}
+            role="listitem"
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full border ${
+              made
+                ? "border-emerald-400/90 bg-emerald-500/25 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.35)]"
+                : "border-red-400/75 bg-red-950/40 text-red-300 shadow-[0_0_6px_rgba(248,113,113,0.25)]"
+            }`}
+            aria-label={made ? "Penal convertido" : "Penal fallado"}
+          >
+            {made ? (
+              <Check className="h-3 w-3 stroke-3" aria-hidden />
+            ) : (
+              <X className="h-3 w-3 stroke-3" aria-hidden />
+            )}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -164,6 +199,12 @@ export function SportBroadcastHero({
   inPeriodBreak = false,
   /** @type {{ side: 'home'|'away', outName: string, inName: string } | null} */
   substitutionFromActa = null,
+  /** Marcador de penales (convertidos) desde acta; null = no forzar. */
+  officialPenaltyHome = null,
+  officialPenaltyAway = null,
+  /** Secuencia de tanda: true = convertido, false = fallado (mismo orden que en acta). */
+  penaltyShootoutHome = null,
+  penaltyShootoutAway = null,
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const { template, sport, heroShowChrono, heroShowSystemClock, publicShowMs } =
@@ -203,6 +244,19 @@ export function SportBroadcastHero({
       officialAwayScore != null && Number.isFinite(Number(officialAwayScore))
         ? Number(officialAwayScore)
         : sport.scoreAway;
+
+    const penH =
+      officialPenaltyHome != null && Number.isFinite(Number(officialPenaltyHome))
+        ? Math.max(0, Math.min(99, Number(officialPenaltyHome)))
+        : 0;
+    const penA =
+      officialPenaltyAway != null && Number.isFinite(Number(officialPenaltyAway))
+        ? Math.max(0, Math.min(99, Number(officialPenaltyAway)))
+        : 0;
+    const penMarksH = Array.isArray(penaltyShootoutHome) ? penaltyShootoutHome : [];
+    const penMarksA = Array.isArray(penaltyShootoutAway) ? penaltyShootoutAway : [];
+    const showPenaltyOnBoard =
+      penH > 0 || penA > 0 || penMarksH.length > 0 || penMarksA.length > 0;
 
     const sp = parseStatsPanel(widgetState.statsPanel);
     const statsRows = buildSoccerStatsRows(sp, sport, nowMs);
@@ -408,6 +462,23 @@ export function SportBroadcastHero({
             {padScore(homeScore)} <span className="text-slate-600">—</span> {padScore(awayScore)}
           </p>
         </div>
+
+        {showPenaltyOnBoard ? (
+          <div className="text-center mb-3 py-2 rounded-lg border border-amber-500/35 bg-amber-950/20">
+            <p className="text-[9px] uppercase tracking-wider text-amber-200/90 mb-1">
+              Penales (tanda)
+            </p>
+            <p className={`text-2xl md:text-3xl ${ledAmber}`}>
+              {padScore(penH)} <span className="text-slate-600">—</span> {padScore(penA)}
+            </p>
+            {(penMarksH.length > 0 || penMarksA.length > 0) && (
+              <div className="mt-2.5 space-y-2 px-1">
+                <PenaltyMarksLedRow label={hName} marks={penMarksH} />
+                <PenaltyMarksLedRow label={aName} marks={penMarksA} />
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {sp.enabled && statsRows.length > 0 ? (
           <details

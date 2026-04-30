@@ -2,9 +2,9 @@ import React from "react";
 
 /**
  * Banner de campeón reciente (solo si el API devuelve datos).
- * @param {{ champion: { name: string, logoUrl?: string, competitionName: string, tournamentName?: string, year?: number } | null }} props
+ * @param {{ champion: { name: string, logoUrl?: string, competitionName: string, tournamentName?: string, year?: number } | null, title?: string }} props
  */
-export default function ChampionBanner({ champion }) {
+export default function ChampionBanner({ champion, title = "Campeón reciente" }) {
   if (!champion?.name) return null;
 
   const badge =
@@ -29,7 +29,7 @@ export default function ChampionBanner({ champion }) {
           </div>
           <div>
             <span className="text-amber-800 font-bold uppercase tracking-[0.2em] text-[10px] md:text-xs">
-              Campeón reciente
+              {title}
             </span>
             <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight uppercase mt-1">
               {champion.name}

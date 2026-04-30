@@ -19,7 +19,7 @@ function formatHms(ms) {
 
 /**
  * Vitrina: plantilla «time» (tiempos) o tablero deportivo según `widgetState.template`.
- * Props opcionales solo usadas en fútbol: marcador acta, reloj de competencia, reglamento, entretiempo.
+ * Props opcionales en fútbol: marcador acta, penales (totales + tanda ✓/✗ desde acta), reloj, reglamento, entretiempo.
  */
 export function MatchBroadcastHero({
   widgetState,
@@ -34,6 +34,10 @@ export function MatchBroadcastHero({
   sportRules = null,
   inPeriodBreak = false,
   substitutionFromActa = null,
+  officialPenaltyHome = null,
+  officialPenaltyAway = null,
+  penaltyShootoutHome = null,
+  penaltyShootoutAway = null,
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -58,6 +62,10 @@ export function MatchBroadcastHero({
         sportRules={sportRules}
         inPeriodBreak={inPeriodBreak}
         substitutionFromActa={substitutionFromActa}
+        officialPenaltyHome={officialPenaltyHome}
+        officialPenaltyAway={officialPenaltyAway}
+        penaltyShootoutHome={penaltyShootoutHome}
+        penaltyShootoutAway={penaltyShootoutAway}
       />
     );
   }

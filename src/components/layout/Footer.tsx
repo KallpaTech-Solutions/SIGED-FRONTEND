@@ -80,10 +80,10 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  to="/calendario"
+                  to="/campeones"
                   className="text-slate-400 hover:text-primary transition-colors"
                 >
-                  Calendario Deportivo
+                  Campeones
                 </Link>
               </li>
               <li>

@@ -69,6 +69,12 @@ export function useMatchPublicDetailHub(
         if ("visitorScore" in payload) {
           next.visitorScore = payload.visitorScore;
         }
+        if ("localPenaltyScore" in payload) {
+          next.localPenaltyScore = payload.localPenaltyScore;
+        }
+        if ("visitorPenaltyScore" in payload) {
+          next.visitorPenaltyScore = payload.visitorPenaltyScore;
+        }
         if ("clockAccumulatedSeconds" in payload) {
           next.clockAccumulatedSeconds = payload.clockAccumulatedSeconds;
         }

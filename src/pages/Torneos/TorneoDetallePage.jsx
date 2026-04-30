@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronLeft,
   Loader2,
@@ -13,14 +13,26 @@ import {
   Save,
   LayoutGrid,
   Radio,
+  Bell,
+  Lock,
+  Unlock,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import {
   fetchTournamentById,
+  fetchTournamentAdminAlerts,
   createCompetition,
+  deleteCompetition,
+  deleteTournament,
   patchTournamentLifecycleStatus,
   patchTournamentRules,
+  setCompetitionRostersLock,
+  setCompetitionTeamRosterLock,
+  setTournamentRostersLock,
+  updateCompetitionTeamInscriptionLimit,
 } from "../../api/tournamentsAdminService";
 import { fetchDisciplinesAdmin } from "../../api/disciplinesAdminService";
 import {
@@ -49,8 +61,10 @@ function tournamentStatusToNumber(status) {
 
 export default function TorneoDetallePage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { can } = useAuth();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const canManage = can("tourn.manage");
   const canFixtureSetup =
     can("tourn.manage") || can("tourn.config") || can("tourn.fixture");
@@ -60,25 +74,37 @@ export default function TorneoDetallePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tournament, setTournament] = useState(null);
+  const [alerts, setAlerts] = useState([]);
   const [disciplines, setDisciplines] = useState([]);
 
   const [form, setForm] = useState({
     disciplineId: "",
     gender: 0,
     categoryName: "",
+    maxTeamsPerOrganization: 1,
   });
   const [saving, setSaving] = useState(false);
   const [statusSelect, setStatusSelect] = useState(0);
   const [statusSaving, setStatusSaving] = useState(false);
   const [rulesSaving, setRulesSaving] = useState(false);
+  const [rostersBusy, setRostersBusy] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [competitionDeleteBusy, setCompetitionDeleteBusy] = useState(null);
+  const [competitionLimitBusy, setCompetitionLimitBusy] = useState(null);
+  const [competitionLimitDraft, setCompetitionLimitDraft] = useState({});
+  const [teamUnlockPick, setTeamUnlockPick] = useState({});
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      const t = await fetchTournamentById(id);
+      const [t, alertRows] = await Promise.all([
+        fetchTournamentById(id),
+        canViewTournament ? fetchTournamentAdminAlerts(id).catch(() => []) : [],
+      ]);
       setTournament(t);
+      setAlerts(Array.isArray(alertRows) ? alertRows : []);
       setStatusSelect(tournamentStatusToNumber(t?.status ?? t?.Status));
       if (canManage) {
         try {
@@ -99,11 +125,12 @@ export default function TorneoDetallePage() {
               "No se pudo cargar el torneo."
       );
       setTournament(null);
+      setAlerts([]);
       setDisciplines([]);
     } finally {
       setLoading(false);
     }
-  }, [id, canManage]);
+  }, [id, canManage, canViewTournament]);
 
   useEffect(() => {
     load();
@@ -132,6 +159,10 @@ export default function TorneoDetallePage() {
         disciplineId: form.disciplineId,
         gender: Number(form.gender),
         categoryName: form.categoryName?.trim() || null,
+        maxTeamsPerOrganization: Math.max(
+          0,
+          Number(form.maxTeamsPerOrganization) || 0
+        ),
       });
       toast("Competencia creada.", "success");
       setForm((f) => ({ ...f, categoryName: "" }));
@@ -145,6 +176,31 @@ export default function TorneoDetallePage() {
       toast(typeof msg === "string" ? msg : "Error al crear.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCompetitionTeamLimitSave = async (competitionId, rawValue) => {
+    if (!canManage || !competitionId || competitionLimitBusy) return;
+    const next = Math.max(0, Number(rawValue) || 0);
+    setCompetitionLimitBusy(String(competitionId));
+    try {
+      await updateCompetitionTeamInscriptionLimit(competitionId, next);
+      toast(
+        next === 0
+          ? "La competencia ahora permite equipos sin límite por escuela."
+          : `Límite actualizado: ${next} equipo(s) por escuela.`,
+        "success"
+      );
+      await load();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data ||
+        err?.message ||
+        "No se pudo guardar el límite de inscripción.";
+      toast(typeof msg === "string" ? msg : "Error al guardar.", "error");
+    } finally {
+      setCompetitionLimitBusy(null);
     }
   };
 
@@ -190,6 +246,158 @@ export default function TorneoDetallePage() {
       toast(typeof msg === "string" ? msg : "Error al subir.", "error");
     } finally {
       setRulesSaving(false);
+    }
+  };
+
+  const handleDeleteTournament = async () => {
+    if (!canManage || !id || deleteBusy) return;
+    const ok = await confirm({
+      title: "Eliminar torneo",
+      message:
+        "¿Eliminar este torneo definitivamente? Solo se podrá eliminar si todavía no tiene competencias asignadas.",
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setDeleteBusy(true);
+    try {
+      await deleteTournament(id);
+      toast("Torneo eliminado.", "success");
+      navigate("/PanelControl/torneos");
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo eliminar el torneo.",
+        "error"
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const handleDeleteCompetition = async (competitionId, label) => {
+    if (!canManage || !competitionId || competitionDeleteBusy) return;
+    const ok = await confirm({
+      title: "Eliminar competencia",
+      message: `¿Eliminar la competencia "${label}"? Primero verificaremos si tiene historial antes de borrarla.`,
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setCompetitionDeleteBusy(String(competitionId));
+    try {
+      await deleteCompetition(competitionId);
+      toast("Competencia eliminada.", "success");
+      await load();
+    } catch (err) {
+      const data = err?.response?.data;
+      if (data?.canForceDelete) {
+        const forceOk = await confirm({
+          title: "Eliminar todo el historial",
+          message:
+            `${data.message} Esta acción borrará definitivamente partidos, eventos, actas, planillas, inscripciones, fases, grupos y reglas de esta competencia. ¿Confirmas eliminar todo?`,
+          confirmText: "Sí, eliminar todo",
+          cancelText: "Conservar",
+          variant: "danger",
+        });
+        if (forceOk) {
+          try {
+            await deleteCompetition(competitionId, { force: true });
+            toast("Competencia eliminada con todo su historial.", "success");
+            await load();
+          } catch (forceErr) {
+            toast(
+              forceErr?.response?.data?.message ||
+                forceErr?.response?.data ||
+                "No se pudo eliminar la competencia.",
+              "error"
+            );
+          } finally {
+            setCompetitionDeleteBusy(null);
+          }
+          return;
+        }
+        setCompetitionDeleteBusy(null);
+        return;
+      }
+
+      toast(
+        data?.message ||
+          data ||
+          "No se pudo eliminar la competencia.",
+        "error"
+      );
+    } finally {
+      setCompetitionDeleteBusy(null);
+    }
+  };
+
+  const handleTournamentRostersLock = async (locked) => {
+    if (!canManage || !id) return;
+    setRostersBusy(`tournament-${locked ? "lock" : "unlock"}`);
+    try {
+      await setTournamentRostersLock(id, locked);
+      toast(
+        locked
+          ? "Listas de todas las competencias cerradas."
+          : "Listas de todas las competencias reabiertas.",
+        "success"
+      );
+      await load();
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo actualizar las listas.",
+        "error"
+      );
+    } finally {
+      setRostersBusy(null);
+    }
+  };
+
+  const handleCompetitionRostersLock = async (competitionId, locked) => {
+    if (!canManage || !competitionId) return;
+    setRostersBusy(`${competitionId}-${locked ? "lock" : "unlock"}`);
+    try {
+      await setCompetitionRostersLock(competitionId, locked);
+      toast(locked ? "Listas de la competencia cerradas." : "Listas de la competencia reabiertas.", "success");
+      await load();
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo actualizar la competencia.",
+        "error"
+      );
+    } finally {
+      setRostersBusy(null);
+    }
+  };
+
+  const handleTeamRosterUnlock = async (competitionId) => {
+    const teamId = teamUnlockPick[competitionId];
+    if (!canManage || !competitionId || !teamId) return;
+    setRostersBusy(`${competitionId}-${teamId}-unlock`);
+    try {
+      await setCompetitionTeamRosterLock({ competitionId, teamId, locked: false });
+      toast("Lista del equipo reabierta como excepción.", "success");
+      setTeamUnlockPick((prev) => ({ ...prev, [competitionId]: "" }));
+      await load();
+    } catch (err) {
+      toast(
+        err?.response?.data?.message ||
+          err?.response?.data ||
+          "No se pudo reabrir la lista del equipo.",
+        "error"
+      );
+    } finally {
+      setRostersBusy(null);
     }
   };
 
@@ -291,17 +499,33 @@ export default function TorneoDetallePage() {
             <ExternalLink className="w-4 h-4" />
           </a>
           {canManage && (
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById("gestion-estado-torneo")
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
-              className="text-xs font-bold text-slate-600 hover:text-emerald-700 underline underline-offset-2"
-            >
-              Cambiar estado del torneo ↓
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("gestion-estado-torneo")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                className="text-xs font-bold text-slate-600 hover:text-emerald-700 underline underline-offset-2"
+              >
+                Cambiar estado del torneo ↓
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteTournament}
+                disabled={deleteBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                title="Solo elimina torneos sin competencias asignadas."
+              >
+                {deleteBusy ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                Eliminar torneo
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -335,6 +559,43 @@ export default function TorneoDetallePage() {
           (y lo que ve la vitrina pública) necesitás permiso de{" "}
           <strong>administración de torneos</strong>.
         </div>
+      )}
+
+      {canViewTournament && alerts.length > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-amber-950 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            Alertas del torneo
+          </h3>
+          <div className="space-y-2">
+            {alerts.slice(0, 8).map((a) => {
+              const severity = String(a.severity ?? a.Severity ?? "info");
+              const path = a.path ?? a.Path;
+              return (
+                <div
+                  key={a.id ?? a.Id}
+                  className={`rounded-xl border px-3 py-2 text-sm flex flex-wrap items-center justify-between gap-3 ${
+                    severity === "danger"
+                      ? "border-red-200 bg-red-50 text-red-900"
+                      : severity === "warning"
+                        ? "border-amber-200 bg-white text-amber-950"
+                        : "border-sky-200 bg-sky-50 text-sky-950"
+                  }`}
+                >
+                  <span>{a.message ?? a.Message}</span>
+                  {path && (
+                    <Link
+                      to={path}
+                      className="text-xs font-bold underline underline-offset-2"
+                    >
+                      {a.actionLabel ?? a.ActionLabel ?? "Resolver"}
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {canManage && (
@@ -386,6 +647,43 @@ export default function TorneoDetallePage() {
                   <Save className="w-4 h-4" />
                 )}
                 Guardar estado
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-1">
+              Listas oficiales
+            </h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Cierra o reabre las listas de todas las competencias. Los delegados solo envían planillas de partido.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleTournamentRostersLock(true)}
+                disabled={!!rostersBusy}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 disabled:opacity-50"
+              >
+                {rostersBusy === "tournament-lock" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                Cerrar todas las listas
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTournamentRostersLock(false)}
+                disabled={!!rostersBusy}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {rostersBusy === "tournament-unlock" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Unlock className="w-4 h-4" />
+                )}
+                Reabrir todas
               </button>
             </div>
           </div>
@@ -450,7 +748,7 @@ export default function TorneoDetallePage() {
             categoría).
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+          <ul className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
             {competitions.map((c) => {
               const cid = c.id ?? c.Id;
               const d = c.discipline ?? c.Discipline;
@@ -458,10 +756,21 @@ export default function TorneoDetallePage() {
               const cat = c.categoryName ?? c.CategoryName;
               const g = c.gender ?? c.Gender;
               const isOn = c.isActive ?? c.IsActive;
+              const competitionLabel = `${dname}${cat ? ` · ${cat}` : ""} (${genderLabel(g)})`;
+              const competitionTeams =
+                c.competitionTeams ?? c.CompetitionTeams ?? [];
+              const lockedCount = competitionTeams.filter(
+                (ct) => ct.rosterLocked ?? ct.RosterLocked ?? false
+              ).length;
+              const totalTeams = competitionTeams.length;
+              const maxTeamsPerOrganization =
+                c.maxTeamsPerOrganization ?? c.MaxTeamsPerOrganization ?? 1;
+              const limitDraft =
+                competitionLimitDraft[cid] ?? String(maxTeamsPerOrganization);
               return (
                 <li
                   key={cid}
-                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-slate-50/80"
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:bg-slate-50/40"
                 >
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900">
@@ -476,10 +785,96 @@ export default function TorneoDetallePage() {
                         <span className="text-emerald-700">Activa</span>
                       ) : (
                         <span className="text-slate-400">Inactiva</span>
-                      )}
+                      )}{" "}
+                      · Listas {lockedCount}/{totalTeams} cerradas
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Límite por escuela:{" "}
+                      <span className="font-semibold text-slate-700">
+                        {maxTeamsPerOrganization === 0
+                          ? "sin límite"
+                          : `${maxTeamsPerOrganization} equipo(s)`}
+                      </span>
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <div className="w-full md:w-auto rounded-lg border border-slate-200/80 bg-slate-50/70 px-2 py-2">
+                    <div className="flex flex-col items-stretch gap-2 md:items-end">
+                      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    {canManage && (
+                      <>
+                        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                          <span className="text-[11px] font-bold text-slate-500">
+                            Máx. escuela
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={99}
+                            value={limitDraft}
+                            onChange={(e) =>
+                              setCompetitionLimitDraft((prev) => ({
+                                ...prev,
+                                [cid]: e.target.value,
+                              }))
+                            }
+                            className="w-14 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs"
+                            title="0 significa sin límite"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleCompetitionTeamLimitSave(cid, limitDraft)
+                            }
+                            disabled={
+                              competitionLimitBusy === String(cid) ||
+                              Number(limitDraft) === maxTeamsPerOrganization
+                            }
+                            className="px-2 py-1 rounded-md bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            {competitionLimitBusy === String(cid) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              "Guardar"
+                            )}
+                          </button>
+                        </div>
+                        <div className="h-6 w-px bg-slate-200 hidden xl:block" />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDeleteCompetition(cid, competitionLabel)
+                          }
+                          disabled={competitionDeleteBusy === String(cid)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          title="Elimina la competencia si todavía no tiene historial de actas."
+                        >
+                          {competitionDeleteBusy === String(cid) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                          Eliminar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCompetitionRostersLock(cid, true)}
+                          disabled={!!rostersBusy || totalTeams === 0}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-900 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          Cerrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCompetitionRostersLock(cid, false)}
+                          disabled={!!rostersBusy || totalTeams === 0}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          <Unlock className="w-3.5 h-3.5" />
+                          Reabrir
+                        </button>
+                      </>
+                    )}
                     {canFixtureSetup && (
                       <Link
                         to={`/PanelControl/torneos/${id}/competencias/${cid}/fixture`}
@@ -517,6 +912,47 @@ export default function TorneoDetallePage() {
                       <ExternalLink className="w-3 h-3" />
                     </Link>
                   </div>
+                  {canManage && totalTeams > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1">
+                        <select
+                          value={teamUnlockPick[cid] ?? ""}
+                          onChange={(e) =>
+                            setTeamUnlockPick((prev) => ({
+                              ...prev,
+                              [cid]: e.target.value,
+                            }))
+                          }
+                          className="max-w-44 rounded-lg border border-slate-200 px-2 py-1 text-xs bg-white"
+                        >
+                          <option value="">Excepción equipo…</option>
+                          {competitionTeams.map((ct) => {
+                            const team = ct.team ?? ct.Team ?? {};
+                            const teamId = ct.teamId ?? ct.TeamId;
+                            const teamName =
+                              team.name ?? team.Name ?? String(teamId);
+                            return (
+                              <option key={teamId} value={teamId}>
+                                {teamName}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleTeamRosterUnlock(cid)}
+                          disabled={
+                            !!rostersBusy || !(teamUnlockPick[cid] ?? "")
+                          }
+                          className="px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                        >
+                          Reabrir equipo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
                 </li>
               );
             })}
@@ -590,7 +1026,7 @@ export default function TorneoDetallePage() {
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-[11px] font-bold text-slate-500 mb-1">
                   Categoría (opcional)
                 </label>
@@ -603,6 +1039,28 @@ export default function TorneoDetallePage() {
                   placeholder="Ej. Cachimbos, Libre, Primera…"
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                  Máximo de equipos por escuela
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={form.maxTeamsPerOrganization}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      maxTeamsPerOrganization: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Usa 1 para la regla actual. Usa 0 si quieres permitir más de
+                  un equipo sin límite.
+                </p>
               </div>
             </div>
             <button

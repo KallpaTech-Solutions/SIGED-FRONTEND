@@ -168,6 +168,21 @@ function normTeamIds(competition) {
   return [...new Set(ids)];
 }
 
+function buildCompetitionTeamOptions(competition) {
+  const rows =
+    competition?.competitionTeams ?? competition?.CompetitionTeams ?? [];
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((ct) => {
+      const team = ct.team ?? ct.Team ?? {};
+      const id = String(team.id ?? team.Id ?? ct.teamId ?? ct.TeamId ?? "");
+      const name = team.name ?? team.Name ?? id;
+      const active = team.isActive ?? team.IsActive ?? true;
+      return id ? { id, name, active } : null;
+    })
+    .filter((x) => x && x.active);
+}
+
 export default function CompetenciaFixtureSetupPage() {
   const { tournamentId, competitionId } = useParams();
   const { can } = useAuth();
@@ -191,6 +206,8 @@ export default function CompetenciaFixtureSetupPage() {
   const [autoRR, setAutoRR] = useState(true);
   const [knockoutPhaseName, setKnockoutPhaseName] = useState("Eliminatoria");
   const [knockoutRandom, setKnockoutRandom] = useState(true);
+  const [knockoutPairingMode, setKnockoutPairingMode] = useState("auto");
+  const [knockoutManualPairs, setKnockoutManualPairs] = useState([]);
 
   const [playoffPhaseName, setPlayoffPhaseName] = useState("Eliminatoria");
   const [playoffPairingMode, setPlayoffPairingMode] = useState("auto");
@@ -261,6 +278,29 @@ export default function CompetenciaFixtureSetupPage() {
     [competition]
   );
   const teamCount = teamIds.length;
+  const knockoutTeamOptions = useMemo(
+    () => (competition ? buildCompetitionTeamOptions(competition) : []),
+    [competition]
+  );
+  const knockoutTeamMap = useMemo(
+    () => new Map(knockoutTeamOptions.map((t) => [t.id, t.name])),
+    [knockoutTeamOptions]
+  );
+  const knockoutOddTeams = teamCount % 2 === 1;
+  const knockoutAutoPairPreview = useMemo(() => {
+    if (teamCount < 2) return [];
+    const pairs = [];
+    for (let i = 0; i < Math.floor(teamCount / 2); i += 1) {
+      const localId = teamIds[i];
+      const visitorId = teamIds[teamCount - 1 - i];
+      pairs.push({
+        key: i,
+        localLabel: knockoutTeamMap.get(localId) ?? localId,
+        visitorLabel: knockoutTeamMap.get(visitorId) ?? visitorId,
+      });
+    }
+    return pairs;
+  }, [teamCount, teamIds, knockoutTeamMap]);
 
   const groupPhases = useMemo(
     () =>
@@ -326,15 +366,21 @@ export default function CompetenciaFixtureSetupPage() {
 
   useEffect(() => {
     if (playoffPairingMode !== "manual") return;
-    if (qualifiedPreview.length < 2 || oddQualifiedCount) return;
+    if (qualifiedPreview.length < 2) return;
     setManualPairs(suggestedSnakePairings(qualifiedPreview));
-  }, [playoffPairingMode, qualifiedPreview, oddQualifiedCount]);
+  }, [playoffPairingMode, qualifiedPreview]);
 
   useEffect(() => {
-    if (oddQualifiedCount && playoffPairingMode === "manual") {
-      setPlayoffPairingMode("auto");
-    }
-  }, [oddQualifiedCount, playoffPairingMode]);
+    if (mode !== "knockout") return;
+    if (knockoutPairingMode !== "manual") return;
+    if (teamCount < 2) return;
+    setKnockoutManualPairs((prev) => {
+      if (prev.length === Math.floor(teamCount / 2)) return prev;
+      return suggestedSnakePairings(
+        teamIds.map((id) => ({ teamId: id }))
+      ).map((p) => ({ localId: p.localId, visitorId: p.visitorId }));
+    });
+  }, [mode, knockoutPairingMode, teamCount, teamIds]);
 
   useEffect(() => {
     if (!competition) return;
@@ -447,6 +493,35 @@ export default function CompetenciaFixtureSetupPage() {
       toast("Esta competencia ya tiene fases. No se puede volver a armar desde cero aquí.", "error");
       return;
     }
+    if (mode === "knockout" && knockoutPairingMode === "manual") {
+      const used = new Set();
+      for (const row of knockoutManualPairs) {
+        if (!row.localId || !row.visitorId) {
+          toast("Completá todos los cruces manuales.", "error");
+          return;
+        }
+        if (row.localId === row.visitorId) {
+          toast("Local y visitante no pueden ser el mismo equipo.", "error");
+          return;
+        }
+        if (used.has(row.localId) || used.has(row.visitorId)) {
+          toast("Cada equipo solo puede aparecer una vez en los cruces.", "error");
+          return;
+        }
+        used.add(row.localId);
+        used.add(row.visitorId);
+      }
+      const expectedUsed = knockoutOddTeams ? teamCount - 1 : teamCount;
+      if (used.size !== expectedUsed) {
+        toast(
+          knockoutOddTeams
+            ? "Con cantidad impar, definí cruces para todos salvo 1 equipo (pasa libre automático)."
+            : "Debés incluir todos los equipos exactamente una vez.",
+          "error"
+        );
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const body =
@@ -455,7 +530,15 @@ export default function CompetenciaFixtureSetupPage() {
               mode: 1,
               teamIds,
               knockoutPhaseName: knockoutPhaseName.trim() || "Eliminatoria",
-              knockoutRandomSeed: knockoutRandom,
+              knockoutRandomSeed:
+                knockoutPairingMode === "manual" ? false : knockoutRandom,
+              manualPairings:
+                knockoutPairingMode === "manual"
+                  ? knockoutManualPairs.map((x) => ({
+                      localTeamId: x.localId,
+                      visitorTeamId: x.visitorId,
+                    }))
+                  : null,
             }
           : {
               mode: 0,
@@ -497,13 +580,6 @@ export default function CompetenciaFixtureSetupPage() {
       return;
     }
     if (playoffPairingMode === "manual") {
-      if (oddQualifiedCount) {
-        toast(
-          "Con clasificados impares usá modo automático (incluye tanda libre).",
-          "error"
-        );
-        return;
-      }
       const used = new Set();
       for (const row of manualPairs) {
         if (!row.localId || !row.visitorId) {
@@ -521,9 +597,14 @@ export default function CompetenciaFixtureSetupPage() {
         used.add(row.localId);
         used.add(row.visitorId);
       }
-      if (used.size !== qualifiedPreview.length) {
+      const expectedUsed = oddQualifiedCount
+        ? qualifiedPreview.length - 1
+        : qualifiedPreview.length;
+      if (used.size !== expectedUsed) {
         toast(
-          "Debés incluir todos los clasificados exactamente una vez.",
+          oddQualifiedCount
+            ? "Con clasificados impares, definí cruces para todos salvo 1 (pasa libre automático)."
+            : "Debés incluir todos los clasificados exactamente una vez.",
           "error"
         );
         return;
@@ -846,6 +927,121 @@ export default function CompetenciaFixtureSetupPage() {
                 Cruces aleatorios (si no, se respeta el orden de la lista de
                 inscriptos)
               </label>
+
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                  Armado de cruces
+                </p>
+                <label className="flex items-start gap-2 text-sm text-slate-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="knockoutPairing"
+                    checked={knockoutPairingMode === "auto"}
+                    onChange={() => setKnockoutPairingMode("auto")}
+                    className="mt-0.5"
+                    disabled={hasPhases}
+                  />
+                  <span>
+                    <span className="font-semibold">Automático</span>
+                    <span className="block text-xs font-normal mt-0.5">
+                      Usa sorteo aleatorio o el orden actual de inscriptos.
+                    </span>
+                  </span>
+                </label>
+                <label
+                  className="flex items-start gap-2 text-sm cursor-pointer text-slate-800"
+                >
+                  <input
+                    type="radio"
+                    name="knockoutPairing"
+                    checked={knockoutPairingMode === "manual"}
+                    onChange={() => setKnockoutPairingMode("manual")}
+                    className="mt-0.5"
+                    disabled={hasPhases}
+                  />
+                  <span>
+                    <span className="font-semibold">Manual (editable)</span>
+                    <span className="block text-xs font-normal mt-0.5">
+                      Definí local y visitante para cada partido antes de guardar.
+                      {knockoutOddTeams
+                        ? " Si queda 1 equipo sin rival, pasa libre automáticamente."
+                        : ""}
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              {knockoutPairingMode === "auto" && (
+                <ul className="text-xs text-slate-700 space-y-1 rounded-xl bg-white/80 border border-emerald-100 px-3 py-2">
+                  {knockoutAutoPairPreview.map((row) => (
+                    <li key={`ko-auto-${row.key}`}>
+                      <span className="font-semibold">{row.localLabel}</span>
+                      {" vs "}
+                      <span className="font-semibold">{row.visitorLabel}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {knockoutPairingMode === "manual" &&
+                knockoutManualPairs.length > 0 &&
+                (
+                  <div className="space-y-3">
+                    {knockoutManualPairs.map((pair, idx) => (
+                      <div
+                        key={`ko-pair-${idx}`}
+                        className="flex flex-wrap items-center gap-2 text-sm"
+                      >
+                        <select
+                          value={pair.localId}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setKnockoutManualPairs((rows) =>
+                              rows.map((r, j) =>
+                                j === idx ? { ...r, localId: v } : r
+                              )
+                            );
+                          }}
+                          className="flex-1 min-w-[140px] rounded-xl border border-slate-200 px-2 py-1.5 bg-white"
+                          disabled={hasPhases}
+                        >
+                          <option value="">Local…</option>
+                          {knockoutTeamOptions.map((t) => (
+                            <option key={`ko-l-${idx}-${t.id}`} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-slate-500 font-bold">vs</span>
+                        <select
+                          value={pair.visitorId}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setKnockoutManualPairs((rows) =>
+                              rows.map((r, j) =>
+                                j === idx ? { ...r, visitorId: v } : r
+                              )
+                            );
+                          }}
+                          className="flex-1 min-w-[140px] rounded-xl border border-slate-200 px-2 py-1.5 bg-white"
+                          disabled={hasPhases}
+                        >
+                          <option value="">Visitante…</option>
+                          {knockoutTeamOptions.map((t) => (
+                            <option key={`ko-v-${idx}-${t.id}`} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                    {knockoutOddTeams && (
+                      <p className="text-xs text-amber-800 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        Equipo restante sin emparejar: pase libre automático a la siguiente ronda.
+                      </p>
+                    )}
+                  </div>
+                )}
             </div>
           )}
 
@@ -862,7 +1058,11 @@ export default function CompetenciaFixtureSetupPage() {
               ) : (
                 <Users className="w-4 h-4" />
               )}
-              {submitting ? "Generando…" : "Generar formato y fixture"}
+              {submitting
+                ? "Guardando…"
+                : mode === "knockout"
+                ? "Guardar fixture"
+                : "Generar formato y fixture"}
             </button>
             <Link
               to={`/torneos/${competitionId}`}
@@ -954,26 +1154,22 @@ export default function CompetenciaFixtureSetupPage() {
                       </span>
                     </label>
                     <label
-                      className={`flex items-start gap-2 text-sm cursor-pointer ${
-                        oddQualifiedCount
-                          ? "text-slate-400"
-                          : "text-slate-800"
-                      }`}
+                      className="flex items-start gap-2 text-sm cursor-pointer text-slate-800"
                     >
                       <input
                         type="radio"
                         name="playoffPairing"
                         checked={playoffPairingMode === "manual"}
                         onChange={() => setPlayoffPairingMode("manual")}
-                        disabled={oddQualifiedCount}
                         className="mt-0.5"
                       />
                       <span>
                         <span className="font-semibold">Manual</span>
                         <span className="block text-xs font-normal mt-0.5">
+                          Definí local y visitante en cada partido.
                           {oddQualifiedCount
-                            ? "No disponible con clasificados impares."
-                            : "Definí local y visitante en cada partido."}
+                            ? " Si queda 1 clasificado sin rival, pasa libre automático."
+                            : ""}
                         </span>
                       </span>
                     </label>
@@ -993,7 +1189,7 @@ export default function CompetenciaFixtureSetupPage() {
 
                   {playoffPairingMode === "manual" &&
                     manualPairs.length > 0 &&
-                    !oddQualifiedCount && (
+                    (
                       <div className="space-y-3">
                         {manualPairs.map((pair, idx) => (
                           <div
@@ -1041,6 +1237,11 @@ export default function CompetenciaFixtureSetupPage() {
                             </select>
                           </div>
                         ))}
+                        {oddQualifiedCount && (
+                          <p className="text-xs text-amber-800 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                            Clasificado restante sin emparejar: pase libre automático.
+                          </p>
+                        )}
                       </div>
                     )}
 

@@ -122,9 +122,8 @@ export default function TorneosPublicPage() {
                     Torneos
                   </h2>
                   <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                    Solo torneos con{" "}
-                    <span className="font-medium">IsActive</span> en el API; la
-                    grilla se refresca sola cuando hay altas o cambios de visibilidad.
+                    Aquí se muestran los torneos publicados y su estado actual.
+                    La lista se actualiza automáticamente cuando hay cambios.
                   </p>
                 </div>
                 <TournamentGrid tournaments={tournaments} />

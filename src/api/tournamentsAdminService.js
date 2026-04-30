@@ -18,6 +18,11 @@ export async function fetchTournamentById(id) {
   return data;
 }
 
+export async function fetchTournamentAdminAlerts(id) {
+  const { data } = await api.get(`/Tournaments/${id}/admin-alerts`);
+  return Array.isArray(data) ? data : [];
+}
+
 /** Lista de competencias de un torneo (también viene en fetchTournamentById). */
 export async function fetchCompetitionsByTournament(tournamentId) {
   const { data } = await api.get(`/Competitions/tournament/${tournamentId}`);
@@ -29,6 +34,51 @@ export async function fetchCompetitionsByTournament(tournamentId) {
  */
 export async function createCompetition(body) {
   const { data } = await api.post("/Competitions", body);
+  return data;
+}
+
+export async function updateCompetitionTeamInscriptionLimit(
+  competitionId,
+  maxTeamsPerOrganization
+) {
+  const { data } = await api.patch(
+    `/Competitions/${competitionId}/team-inscription-limit`,
+    { maxTeamsPerOrganization }
+  );
+  return data;
+}
+
+/** Fijar o borrar campeón (gestión). Útil si la última jornada tiene más de un partido. */
+export async function patchCompetitionChampion(competitionId, { championTeamId }) {
+  const { data } = await api.patch(`/Competitions/${competitionId}/champion`, {
+    championTeamId: championTeamId ?? null,
+  });
+  return data;
+}
+
+export async function deleteCompetition(competitionId, { force = false } = {}) {
+  await api.delete(`/Competitions/${competitionId}`, {
+    params: force ? { force: true } : {},
+  });
+}
+
+export async function setTournamentRostersLock(tournamentId, locked) {
+  const suffix = locked ? "lock-all" : "unlock-all";
+  const { data } = await api.patch(`/Tournaments/${tournamentId}/rosters/${suffix}`);
+  return data;
+}
+
+export async function setCompetitionRostersLock(competitionId, locked) {
+  const suffix = locked ? "lock-all" : "unlock-all";
+  const { data } = await api.patch(`/Competitions/${competitionId}/rosters/${suffix}`);
+  return data;
+}
+
+export async function setCompetitionTeamRosterLock({ competitionId, teamId, locked }) {
+  const { data } = await api.patch(
+    `/Competitions/${competitionId}/teams/${teamId}/roster-lock`,
+    { locked }
+  );
   return data;
 }
 
@@ -47,6 +97,10 @@ export async function createTournament(formData) {
     ],
   });
   return data;
+}
+
+export async function deleteTournament(id) {
+  await api.delete(`/Tournaments/${id}`);
 }
 
 const formDataTransform = {

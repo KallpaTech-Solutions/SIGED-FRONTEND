@@ -55,23 +55,28 @@ export default function Navbar() {
 
         {/* Centro: Links de Navegación */}
         <div className="hidden md:flex items-center gap-6">
-          {["INICIO", "TORNEOS", "NOTICIAS", "CALENDARIO"].map((item) => (
-            <div key={item} className="relative flex flex-col items-center">
-              <Link 
-                to={item === "INICIO" ? "/" : `/${item.toLowerCase()}`}
+          {[
+            { label: "INICIO", to: "/" },
+            { label: "TORNEOS", to: "/torneos" },
+            { label: "CAMPEONES", to: "/campeones" },
+            { label: "NOTICIAS", to: "/noticias" },
+          ].map((item) => (
+            <div key={item.to} className="relative flex flex-col items-center">
+              <Link
+                to={item.to}
                 className={`text-[12px] font-semibold transition-colors ${
-                  isActive(item === "INICIO" ? "/" : `/${item.toLowerCase()}`) 
-                  ? inDashboard
-                    ? "text-emerald-300"
-                    : "text-emerald-700"
-                  : inDashboard
-                    ? "text-slate-300 hover:text-white"
-                    : "text-slate-500 hover:text-emerald-600"
+                  isActive(item.to)
+                    ? inDashboard
+                      ? "text-emerald-300"
+                      : "text-emerald-700"
+                    : inDashboard
+                      ? "text-slate-300 hover:text-white"
+                      : "text-slate-500 hover:text-emerald-600"
                 }`}
               >
-                {item}
+                {item.label}
               </Link>
-              {isActive(item === "INICIO" ? "/" : `/${item.toLowerCase()}`) && (
+              {isActive(item.to) && (
                 <span
                   className={`mt-1 h-[2px] w-7 rounded-full ${
                     inDashboard ? "bg-emerald-300" : "bg-emerald-600"
@@ -140,8 +145,8 @@ export default function Navbar() {
             {[
               { label: "Inicio", to: "/" },
               { label: "Torneos", to: "/torneos" },
+              { label: "Campeones", to: "/campeones" },
               { label: "Noticias", to: "/noticias" },
-              { label: "Calendario", to: "/calendario" },
             ].map((item) => (
               <Link
                 key={item.to}

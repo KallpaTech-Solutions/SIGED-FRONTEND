@@ -79,6 +79,41 @@ export async function updateDisciplineRules(disciplineId, rules) {
   return data;
 }
 
+const reportAssetsFormTransform = [
+  (payload, headers) => {
+    if (payload instanceof FormData) {
+      delete headers["Content-Type"];
+    }
+    return payload;
+  },
+];
+
+export async function fetchDisciplineReportAssets(disciplineId) {
+  const { data } = await api.get(`/Disciplines/${disciplineId}/report-assets`);
+  return data;
+}
+
+export async function updateDisciplineReportAssets(disciplineId, formData) {
+  const { data } = await api.put(
+    `/Disciplines/${disciplineId}/report-assets`,
+    formData,
+    { transformRequest: reportAssetsFormTransform }
+  );
+  return data;
+}
+
+export async function fetchDefaultReportAssets() {
+  const { data } = await api.get("/Disciplines/report-assets/default");
+  return data;
+}
+
+export async function updateDefaultReportAssets(formData) {
+  const { data } = await api.put("/Disciplines/report-assets/default", formData, {
+    transformRequest: reportAssetsFormTransform,
+  });
+  return data;
+}
+
 /** Ayudas para claves frecuentes (plantillas FIFA/FIVB/FIBA). */
 export const DISCIPLINE_RULE_KEY_HINTS = {
   POINTS_WIN: "Puntos por victoria",
@@ -102,4 +137,6 @@ export const DISCIPLINE_RULE_KEY_HINTS = {
   PUNTOS_POR_VICTORIA: "Puntos por victoria (tabla)",
   USA_SETS: "Usa sets (true/false)",
   CANTIDAD_PERIODOS: "Cantidad de periodos",
+  ACTA_LOGO_LEFT_URL: "Logo izquierdo para encabezado del acta",
+  ACTA_LOGO_RIGHT_URL: "Logo derecho para encabezado del acta",
 };

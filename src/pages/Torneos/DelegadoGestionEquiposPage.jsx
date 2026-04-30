@@ -15,6 +15,7 @@ import {
   ImagePlus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { fetchPublicTournaments } from "../../api/tournamentsPublicService";
 import {
   fetchDelegateSummary,
@@ -22,6 +23,8 @@ import {
   createPlayerMultipart,
   updatePlayerMultipart,
   deletePlayer,
+  deleteTeam,
+  fetchTeamsManagementCatalog,
   fetchOrgUsersForTeamGestores,
   fetchTeamGestores,
   postTeamGestor,
@@ -90,7 +93,9 @@ function formatBirthForInput(v) {
 
 export default function DelegadoGestionEquiposPage() {
   const { can, user, loading: authLoading } = useAuth();
+  const { confirm } = useConfirm();
   const puedeEliminarJugador = can("tourn.manage");
+  const puedeVerTodasLasEscuelas = can("tourn.manage");
 
   const [summary, setSummary] = useState(null);
   const [tournaments, setTournaments] = useState([]);
@@ -99,6 +104,12 @@ export default function DelegadoGestionEquiposPage() {
   const [togglingId, setTogglingId] = useState(null);
   const [deletingPlayerId, setDeletingPlayerId] = useState(null);
   const [rosterMutateErr, setRosterMutateErr] = useState(null);
+  const [teamsCatalog, setTeamsCatalog] = useState(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState(null);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogOrgId, setCatalogOrgId] = useState("");
+  const [deletingTeamId, setDeletingTeamId] = useState(null);
 
   const [playerEdit, setPlayerEdit] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -144,10 +155,36 @@ export default function DelegadoGestionEquiposPage() {
     }
   }, []);
 
+  const loadTeamsCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const data = await fetchTeamsManagementCatalog({
+        search: catalogSearch,
+        organizacionId: puedeVerTodasLasEscuelas ? catalogOrgId : "",
+        includeInactive: true,
+      });
+      setTeamsCatalog(data);
+    } catch (e) {
+      setCatalogError(
+        e?.response?.data?.message ||
+          (typeof e?.response?.data === "string" ? e.response.data : null) ||
+          "No se pudo cargar el catálogo de equipos."
+      );
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [catalogSearch, catalogOrgId, puedeVerTodasLasEscuelas]);
+
   useEffect(() => {
     if (authLoading || !user) return;
     load();
   }, [load, user, authLoading]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    loadTeamsCatalog();
+  }, [loadTeamsCatalog, user, authLoading]);
 
   const loadGestoresForTeam = useCallback(async (teamId) => {
     try {
@@ -238,13 +275,14 @@ export default function DelegadoGestionEquiposPage() {
   const handlePlayerDelete = async (p, displayName) => {
     if (!puedeEliminarJugador) return;
     const pid = p.id ?? p.Id;
-    if (
-      !window.confirm(
-        `¿Eliminar a ${displayName}? No se puede recuperar. Si ya participó en partidos con goles o tarjetas, el sistema no permitirá borrarlo.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Eliminar jugador",
+      message: `¿Eliminar a ${displayName}? No se puede recuperar. Si ya participó en partidos con goles o tarjetas, el sistema no permitirá borrarlo.`,
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
     setRosterMutateErr(null);
     setDeletingPlayerId(pid);
     try {
@@ -263,16 +301,48 @@ export default function DelegadoGestionEquiposPage() {
     }
   };
 
+  const handleTeamDelete = async (team) => {
+    const teamId = team.id ?? team.Id;
+    const teamName = team.name ?? team.Name ?? "Equipo";
+    const ok = await confirm({
+      title: "Eliminar equipo y plantel",
+      message: `¿Eliminar "${teamName}" y todos sus jugadores? Solo se podrá eliminar si no tiene fixture, partidos, planillas, sanciones ni historial deportivo.`,
+      confirmText: "Eliminar equipo",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setRosterMutateErr(null);
+    setDeletingTeamId(String(teamId));
+    try {
+      await deleteTeam(teamId);
+      await Promise.all([load(), loadTeamsCatalog()]);
+    } catch (err) {
+      setRosterMutateErr(
+        err?.response?.data?.message ||
+          (typeof err?.response?.data === "string"
+            ? err.response.data
+            : null) ||
+          "No se pudo eliminar el equipo."
+      );
+    } finally {
+      setDeletingTeamId(null);
+    }
+  };
+
+
   const handleToggle = async (p) => {
     const pid = p.id ?? p.Id;
     const active = p.isActive ?? p.IsActive;
-    if (
-      !window.confirm(
-        `${active ? "¿Desactivar" : "¿Reactivar"} a este jugador en el plantel?`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: active ? "Desactivar jugador" : "Reactivar jugador",
+      message: `¿${active ? "Desactivar" : "Reactivar"} a este jugador en el plantel?`,
+      confirmText: active ? "Desactivar" : "Reactivar",
+      cancelText: "Cancelar",
+      variant: active ? "danger" : "default",
+    });
+    if (!ok) return;
     setRosterMutateErr(null);
     setTogglingId(pid);
     try {
@@ -375,6 +445,9 @@ export default function DelegadoGestionEquiposPage() {
   const nombreEscuela =
     summary?.nombreEscuela ?? summary?.NombreEscuela ?? "Tu escuela";
   const teams = summary?.teams ?? summary?.Teams ?? [];
+  const catalogTeams = teamsCatalog?.teams ?? teamsCatalog?.Teams ?? [];
+  const catalogOrganizations =
+    teamsCatalog?.organizations ?? teamsCatalog?.Organizations ?? [];
 
   const torneosInscripcion = tournaments.filter((t) => {
     const id = t.id ?? t.Id;
@@ -503,6 +576,199 @@ export default function DelegadoGestionEquiposPage() {
         )}
       </section>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-slate-700" />
+              {puedeVerTodasLasEscuelas
+                ? "Todos los equipos creados"
+                : "Equipos de tu escuela"}
+            </h3>
+            <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+              Revisa quién creó cada equipo, a qué competencias está inscrito y
+              gestiona el equipo completo. La eliminación solo se permite al
+              creador o a administración, y únicamente si no hay historial.
+            </p>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+            {catalogTeams.length} equipo(s)
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-[1fr_16rem]">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+              Buscar por equipo, siglas, responsable o escuela
+            </label>
+            <input
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              placeholder="Ej. Fútbol, TGR, ingeniería..."
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+          {puedeVerTodasLasEscuelas && (
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                Escuela
+              </label>
+              <select
+                value={catalogOrgId}
+                onChange={(e) => setCatalogOrgId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">Todas</option>
+                {catalogOrganizations.map((org) => {
+                  const oid = org.id ?? org.Id;
+                  const oname = org.nombre ?? org.Nombre ?? "Escuela";
+                  return (
+                    <option key={String(oid)} value={String(oid)}>
+                      {oname}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {catalogError && (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {catalogError}
+          </p>
+        )}
+
+        {catalogLoading ? (
+          <div className="flex items-center gap-2 text-sm text-slate-500 py-6">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Cargando equipos…
+          </div>
+        ) : catalogTeams.length === 0 ? (
+          <p className="text-sm text-slate-500 py-6 text-center border border-dashed border-slate-200 rounded-xl">
+            No se encontraron equipos con los filtros actuales.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Equipo</th>
+                  <th className="px-3 py-2 text-left">Escuela</th>
+                  <th className="px-3 py-2 text-left">Creado por</th>
+                  <th className="px-3 py-2 text-left">Inscripciones</th>
+                  <th className="px-3 py-2 text-left">Plantel</th>
+                  <th className="px-4 py-2 text-right w-56">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {catalogTeams.map((team) => {
+                  const tid = String(team.id ?? team.Id);
+                  const tname = team.name ?? team.Name ?? "Equipo";
+                  const initials = team.initials ?? team.Initials;
+                  const school = team.escuela ?? team.Escuela ?? "—";
+                  const createdBy =
+                    team.createdBy ?? team.CreatedBy ?? "Sin registro";
+                  const playerCount = team.playerCount ?? team.PlayerCount ?? 0;
+                  const activePlayerCount =
+                    team.activePlayerCount ?? team.ActivePlayerCount ?? 0;
+                  const inscriptions =
+                    team.inscriptions ?? team.Inscriptions ?? [];
+                  const canDelete = team.canDelete ?? team.CanDelete ?? false;
+                  const isDeleting = deletingTeamId === tid;
+                  return (
+                    <tr key={tid} className="align-top">
+                      <td className="px-3 py-3">
+                        <p className="font-bold text-slate-900">
+                          {tname}
+                          {initials ? (
+                            <span className="ml-1 font-normal text-slate-500">
+                              ({initials})
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {team.isActive ?? team.IsActive
+                            ? "Activo"
+                            : "Inactivo"}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-slate-700">{school}</td>
+                      <td className="px-3 py-3 text-slate-600">{createdBy}</td>
+                      <td className="px-3 py-3">
+                        {inscriptions.length === 0 ? (
+                          <span className="text-xs text-slate-400">
+                            Sin inscripción
+                          </span>
+                        ) : (
+                          <div className="space-y-1">
+                            {inscriptions.map((ins) => (
+                              <div
+                                key={String(ins.competitionId ?? ins.CompetitionId)}
+                                className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] text-emerald-900"
+                              >
+                                <span className="font-semibold">
+                                  {ins.tournamentName ??
+                                    ins.TournamentName ??
+                                    "Torneo"}
+                                </span>{" "}
+                                ·{" "}
+                                {ins.competitionLabel ??
+                                  ins.CompetitionLabel ??
+                                  "Competencia"}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-slate-600">
+                        {activePlayerCount}/{playerCount} activos
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2 min-w-52">
+                          <Link
+                            to={
+                              torneosInscripcion[0]
+                                ? `${PANEL_INSC_BASE}/${String(
+                                    torneosInscripcion[0].id ??
+                                      torneosInscripcion[0].Id
+                                  )}/inscripcion?teamId=${encodeURIComponent(tid)}`
+                                : "#"
+                            }
+                            onClick={(e) => {
+                              if (!torneosInscripcion[0]) e.preventDefault();
+                            }}
+                            className="inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+                          >
+                            <Pencil className="w-3.5 h-3.5 shrink-0" />
+                            Gestionar
+                          </Link>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleTeamDelete(team)}
+                              disabled={isDeleting}
+                              className="inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-800 shadow-sm hover:bg-rose-100 disabled:opacity-50"
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              )}
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm space-y-6">
         <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-slate-700" />
@@ -529,6 +795,9 @@ export default function DelegadoGestionEquiposPage() {
               team.inscriptions ?? team.Inscriptions ?? [];
             const players = sortPlayers(team.players ?? team.Players ?? []);
             const canManage = team.canManage ?? team.CanManage ?? true;
+            const hasLockedRoster = inscriptions.some(
+              (ins) => ins.rosterLocked ?? ins.RosterLocked ?? false
+            );
             const iAmPrincipal =
               team.iAmPrincipal ?? team.IAmPrincipal ?? false;
             const tieneGestoresExplicitos =
@@ -750,8 +1019,13 @@ export default function DelegadoGestionEquiposPage() {
                           "Competencia";
                         const tourName =
                           ins.tournamentName ?? ins.TournamentName ?? "";
+                        const rosterLocked =
+                          ins.rosterLocked ?? ins.RosterLocked ?? false;
                         return (
-                          <li key={cid}>
+                          <li
+                            key={cid}
+                            className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2"
+                          >
                             <Link
                               to={`${PANEL_INSC_BASE}/${tourId}/inscripcion?competitionId=${encodeURIComponent(cid)}`}
                               aria-disabled={!canManage}
@@ -771,6 +1045,22 @@ export default function DelegadoGestionEquiposPage() {
                               </span>
                               <ChevronRight className="w-4 h-4" />
                             </Link>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  rosterLocked
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-emerald-100 text-emerald-800"
+                                }`}
+                              >
+                                {rosterLocked
+                                  ? "Lista cerrada"
+                                  : "Lista abierta"}
+                              </span>
+                              <span className="text-[11px] text-slate-500">
+                                El administrador controla el cierre de listas.
+                              </span>
+                            </div>
                           </li>
                         );
                       })}
@@ -791,7 +1081,7 @@ export default function DelegadoGestionEquiposPage() {
                     </p>
                     <button
                       type="button"
-                      disabled={!canManage}
+                      disabled={!canManage || hasLockedRoster}
                       onClick={() => {
                         setRosterMutateErr(null);
                         if (quickAddTeamId === tid) {
@@ -806,9 +1096,17 @@ export default function DelegadoGestionEquiposPage() {
                     >
                       {quickAddTeamId === tid
                         ? "Cerrar alta rápida"
-                        : "+ Agregar jugador"}
+                        : hasLockedRoster
+                          ? "Lista cerrada"
+                          : "+ Agregar jugador"}
                     </button>
                   </div>
+                  {hasLockedRoster && (
+                    <p className="mb-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                      Hay una competencia con lista cerrada. Reabrila antes de
+                      registrar jugadores nuevos.
+                    </p>
+                  )}
 
                   {quickAddTeamId === tid && (
                     <form

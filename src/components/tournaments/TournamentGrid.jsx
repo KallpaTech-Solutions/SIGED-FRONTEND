@@ -31,16 +31,16 @@ export default function TournamentGrid({ tournaments }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-stretch">
       {tournaments.map((t) => (
         <Link
           key={t.id}
           to={`/torneos/torneo/${t.id}`}
-          className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-300/90 transition-all text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+          className="group h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-300/90 transition-all text-left block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
         >
-          <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="mb-3">
             <div className="min-w-0">
-              <h3 className="font-bold text-slate-900 text-lg leading-snug group-hover:text-emerald-800 transition-colors">
+              <h3 className="font-bold text-slate-900 text-lg leading-tight wrap-anywhere group-hover:text-emerald-800 transition-colors">
                 {t.name}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
@@ -48,19 +48,19 @@ export default function TournamentGrid({ tournaments }) {
               </p>
             </div>
             <span
-              className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full border ${tournamentPublicBadgeClass(
+              className={`inline-flex mt-2 text-[10px] font-bold px-2 py-1 rounded-full border ${tournamentPublicBadgeClass(
                 t.status
               )}`}
             >
               {tournamentPublicLabel(t.status)}
             </span>
           </div>
-          <div className="flex items-start gap-2 text-xs text-slate-600">
+          <div className="flex items-start gap-2 text-xs text-slate-600 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
             <CalendarRange className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>{formatRange(t.startDate, t.endDate)}</span>
           </div>
           {t.organizer && (
-            <p className="mt-3 text-[11px] text-slate-500">
+            <p className="mt-3 text-[11px] text-slate-500 wrap-anywhere">
               <span className="font-semibold text-slate-600">Organiza:</span>{" "}
               {t.organizer}
             </p>

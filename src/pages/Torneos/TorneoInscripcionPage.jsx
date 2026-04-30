@@ -15,16 +15,20 @@ import {
   X,
   UserX,
   UserCheck,
+  ShieldCheck,
+  ShieldX,
 } from "lucide-react";
 import { fetchTournamentPublicDetail } from "../../api/tournamentsPublicService";
 import {
   fetchTeamsMeContext,
   postInscription,
+  deleteInscription,
   createTeamMultipart,
   createPlayerMultipart,
   updatePlayerMultipart,
   deletePlayer,
   fetchTeamDetail,
+  setPlayerEligibility,
   togglePlayerStatus,
 } from "../../api/tournamentInscriptionService";
 import {
@@ -33,9 +37,12 @@ import {
 } from "../../utils/tournamentPublicStatus";
 import { POST_LOGIN_REDIRECT_KEY } from "../../utils/returnUrl";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirm } from "../../context/ConfirmContext";
 
 const PERM_DELEGATE = "tourn.team.manage";
 const PERM_ADMIN = "tourn.manage";
+const PERM_MATCH_CONTROL = "tourn.match.control";
+const PERM_PLAYER_SANCTION = "tourn.player.sanction.manage";
 
 function normCompetitions(raw) {
   return raw?.competitions ?? raw?.Competitions ?? [];
@@ -75,6 +82,9 @@ function sortPlayersForDisplay(raw) {
     const actA = a.isActive ?? a.IsActive ?? true;
     const actB = b.isActive ?? b.IsActive ?? true;
     if (actA !== actB) return actA ? -1 : 1;
+    const eligibleA = a.isEligible ?? a.IsEligible ?? true;
+    const eligibleB = b.isEligible ?? b.IsEligible ?? true;
+    if (eligibleA !== eligibleB) return eligibleA ? -1 : 1;
     const na = a.number ?? a.Number;
     const nb = b.number ?? b.Number;
     if (na != null && nb != null && na !== nb) return Number(na) - Number(nb);
@@ -119,6 +129,7 @@ export default function TorneoInscripcionPage() {
   const presetTeamId = searchParams.get("teamId")?.trim() || "";
 
   const { user, loading: authLoading, can } = useAuth();
+  const { confirm } = useConfirm();
 
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -141,6 +152,9 @@ export default function TorneoInscripcionPage() {
 
   const [existingInscribeTeamId, setExistingInscribeTeamId] = useState("");
   const [inscribing, setInscribing] = useState(false);
+  const [deletingInscription, setDeletingInscription] = useState(false);
+  const [adminDeletingInscriptionKey, setAdminDeletingInscriptionKey] =
+    useState(null);
   const [inscribeMsg, setInscribeMsg] = useState(null);
   const [inscribeErr, setInscribeErr] = useState(null);
 
@@ -170,8 +184,10 @@ export default function TorneoInscripcionPage() {
 
   const tienePermisoDelegadoOAdmin =
     can(PERM_DELEGATE) || can(PERM_ADMIN);
-  /** Borrado físico: solo quien administra torneos (no delegados de escuela). */
-  const puedeEliminarJugador = can(PERM_ADMIN);
+  /** Borrado físico solo si no hay historial; el API valida el equipo que gestiona. */
+  const puedeEliminarJugador = Boolean(user);
+  const puedeValidarJugador =
+    can(PERM_ADMIN) || can(PERM_PLAYER_SANCTION) || can(PERM_MATCH_CONTROL);
 
   const competitions = useMemo(() => normCompetitions(data), [data]);
   const statusRaw =
@@ -279,6 +295,131 @@ export default function TorneoInscripcionPage() {
 
   const nombreEscuela = ctx?.nombreEscuela ?? ctx?.NombreEscuela;
 
+  const selectedCompetition = useMemo(() => {
+    const cid = competitionId || presetCompetitionId;
+    if (!cid || !competitions.length) return null;
+    return (
+      competitions.find((c) => String(c.id ?? c.Id) === String(cid)) ?? null
+    );
+  }, [competitionId, presetCompetitionId, competitions]);
+
+  const selectedInscriptionTeam = useMemo(() => {
+    if (!existingInscribeTeamId || !teams.length) return null;
+    return (
+      teams.find(
+        (t) => String(t.id ?? t.Id) === String(existingInscribeTeamId)
+      ) ?? null
+    );
+  }, [existingInscribeTeamId, teams]);
+
+  const selectedCompetitionTeams = useMemo(
+    () => selectedCompetition?.teams ?? selectedCompetition?.Teams ?? [],
+    [selectedCompetition]
+  );
+
+  const selectedCompetitionLimit =
+    selectedCompetition?.maxTeamsPerOrganization ??
+    selectedCompetition?.MaxTeamsPerOrganization ??
+    1;
+
+  const myTeamIds = useMemo(
+    () => new Set(teams.map((t) => String(t.id ?? t.Id))),
+    [teams]
+  );
+
+  const myInscribedTeamsCount = useMemo(() => {
+    if (!selectedCompetitionTeams?.length || myTeamIds.size === 0) return 0;
+    return selectedCompetitionTeams.filter((ct) => {
+      const teamId = ct.teamId ?? ct.TeamId;
+      return myTeamIds.has(String(teamId));
+    }).length;
+  }, [selectedCompetitionTeams, myTeamIds]);
+
+  const myInscribedTeams = useMemo(() => {
+    if (!selectedCompetitionTeams?.length || myTeamIds.size === 0) return [];
+    return selectedCompetitionTeams
+      .filter((ct) => {
+        const teamId = ct.teamId ?? ct.TeamId;
+        return myTeamIds.has(String(teamId));
+      })
+      .map((ct) => {
+        const team = ct.team ?? ct.Team ?? {};
+        return {
+          id: ct.teamId ?? ct.TeamId,
+          name: team.name ?? team.Name ?? ct.teamName ?? ct.TeamName ?? "Equipo",
+          initials: team.initials ?? team.Initials ?? ct.initials ?? ct.Initials,
+        };
+      });
+  }, [selectedCompetitionTeams, myTeamIds]);
+
+  const selectedTeamAlreadyInscribed = useMemo(() => {
+    if (!existingInscribeTeamId || !selectedCompetitionTeams?.length) return false;
+    return selectedCompetitionTeams.some((ct) => {
+      const teamId = ct.teamId ?? ct.TeamId;
+      return String(teamId) === String(existingInscribeTeamId);
+    });
+  }, [existingInscribeTeamId, selectedCompetitionTeams]);
+
+  const selectedCompetitionLimitReached =
+    selectedCompetitionLimit > 0 &&
+    myInscribedTeamsCount >= selectedCompetitionLimit &&
+    !selectedTeamAlreadyInscribed;
+
+  const myInscriptionLimitText =
+    selectedCompetitionLimit === 0
+      ? "Sin límite por escuela"
+      : `${myInscribedTeamsCount}/${selectedCompetitionLimit} equipo(s) de tu escuela`;
+
+  const selectedTeamName =
+    selectedInscriptionTeam?.name ??
+    selectedInscriptionTeam?.Name ??
+    "Selecciona un equipo";
+
+  const adminCompetitionGroups = useMemo(() => {
+    return competitions.map((competition) => {
+      const rows = competition.teams ?? competition.Teams ?? [];
+      const schools = new Map();
+      rows.forEach((row) => {
+        const team = row.team ?? row.Team ?? {};
+        const school =
+          row.escuela ??
+          row.Escuela ??
+          team.organizacion?.nombre ??
+          team.Organizacion?.Nombre ??
+          "Sin escuela";
+        const key = String(row.organizacionId ?? row.OrganizacionId ?? school);
+        const teamId = row.teamId ?? row.TeamId ?? team.id ?? team.Id;
+        const teamName =
+          row.teamName ?? row.TeamName ?? team.name ?? team.Name ?? "Equipo";
+        const initials =
+          row.initials ?? row.Initials ?? team.initials ?? team.Initials;
+        if (!schools.has(key)) {
+          schools.set(key, {
+            key,
+            school,
+            teams: [],
+          });
+        }
+        schools.get(key).teams.push({
+          id: teamId,
+          name: teamName,
+          initials,
+        });
+      });
+      return {
+        id: competition.id ?? competition.Id,
+        label: competitionOptionLabel(competition),
+        maxTeamsPerOrganization:
+          competition.maxTeamsPerOrganization ??
+          competition.MaxTeamsPerOrganization ??
+          1,
+        schools: Array.from(schools.values()).sort((a, b) =>
+          a.school.localeCompare(b.school, "es")
+        ),
+      };
+    });
+  }, [competitions]);
+
   const [rosterByTeamId, setRosterByTeamId] = useState({});
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState(null);
@@ -289,6 +430,7 @@ export default function TorneoInscripcionPage() {
   const [editErr, setEditErr] = useState(null);
   const [deletingPlayerId, setDeletingPlayerId] = useState(null);
   const [togglingPlayerId, setTogglingPlayerId] = useState(null);
+  const [eligibilityPlayerId, setEligibilityPlayerId] = useState(null);
 
   useEffect(() => {
     if (!user || !teams.length) {
@@ -369,31 +511,6 @@ export default function TorneoInscripcionPage() {
     setPlayerTeamId(String(id ?? ""));
   }, [teams]);
 
-  const tryInscribeAfterCreate = async (newTeamGuid) => {
-    const cid = competitionId || presetCompetitionId;
-    if (!cid || !newTeamGuid) return;
-    try {
-      await postInscription({
-        competitionId: cid,
-        teamId: newTeamGuid,
-      });
-      setSubmitMsg(
-        "Equipo creado e inscripción en la competencia registrada correctamente."
-      );
-    } catch (e) {
-      const msg =
-        e?.response?.data?.message ||
-        (typeof e?.response?.data === "string"
-          ? e.response.data
-          : null) ||
-        "El equipo se creó, pero no se pudo completar la inscripción en la competencia.";
-      setSubmitErr(msg);
-      setSubmitMsg(
-        "Equipo creado. Revisá la inscripción o contactá a OTI si el torneo ya cerró inscripciones."
-      );
-    }
-  };
-
   const handleInscribeExistingTeam = async (e) => {
     e.preventDefault();
     const cid = competitionId || presetCompetitionId;
@@ -406,6 +523,8 @@ export default function TorneoInscripcionPage() {
         competitionId: cid,
         teamId: existingInscribeTeamId,
       });
+      const refreshed = await fetchTournamentPublicDetail(tournamentId);
+      setData(refreshed);
       setInscribeMsg("El equipo quedó inscrito en la competencia elegida.");
     } catch (err) {
       const msg =
@@ -420,14 +539,89 @@ export default function TorneoInscripcionPage() {
     }
   };
 
+  const handleDeleteInscription = async (targetTeam = null) => {
+    const cid = competitionId || presetCompetitionId;
+    const teamId = targetTeam?.id ?? existingInscribeTeamId;
+    const teamName = targetTeam?.name ?? selectedTeamName;
+    if (!cid || !teamId) return;
+
+    const ok = await confirm({
+      title: "Quitar inscripción",
+      message: `¿Quitar la inscripción de ${teamName} en esta competencia? Podrás inscribir otro equipo si el cupo lo permite.`,
+      confirmText: "Quitar inscripción",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    setDeletingInscription(true);
+    setInscribeErr(null);
+    setInscribeMsg(null);
+    try {
+      await deleteInscription({
+        competitionId: cid,
+        teamId,
+      });
+      const refreshed = await fetchTournamentPublicDetail(tournamentId);
+      setData(refreshed);
+      setInscribeMsg("La inscripción fue eliminada. Ahora puedes elegir otro equipo.");
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo eliminar la inscripción.";
+      setInscribeErr(msg);
+    } finally {
+      setDeletingInscription(false);
+    }
+  };
+
+  const handleAdminDeleteInscription = async ({
+    competitionId: cid,
+    teamId,
+    teamName,
+  }) => {
+    if (!can(PERM_ADMIN) || !cid || !teamId) return;
+
+    const ok = await confirm({
+      title: "Quitar inscripción",
+      message: `¿Quitar la inscripción de ${teamName}? Solo se permitirá si todavía no tiene fixture, partidos ni planillas.`,
+      confirmText: "Quitar inscripción",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    const key = `${cid}:${teamId}`;
+    setAdminDeletingInscriptionKey(key);
+    setInscribeErr(null);
+    setInscribeMsg(null);
+    try {
+      await deleteInscription({
+        competitionId: cid,
+        teamId,
+      });
+      const refreshed = await fetchTournamentPublicDetail(tournamentId);
+      setData(refreshed);
+      setInscribeMsg("Inscripción eliminada correctamente.");
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo eliminar la inscripción.";
+      setInscribeErr(msg);
+    } finally {
+      setAdminDeletingInscriptionKey(null);
+    }
+  };
+
   const handleCreateTeam = async (e) => {
     e.preventDefault();
     if (!newName.trim() || resolvedOrganizacionId == null) return;
-    const cid = competitionId || presetCompetitionId;
-    if (!cid) {
-      setSubmitErr("Elegí una competencia antes de crear el equipo.");
-      return;
-    }
     setCreatingTeam(true);
     setSubmitErr(null);
     setSubmitMsg(null);
@@ -447,7 +641,11 @@ export default function TorneoInscripcionPage() {
         setNewInitials("");
         setNewRep("");
         setLogoFile(null);
-        await tryInscribeAfterCreate(tid);
+        setExistingInscribeTeamId(String(tid));
+        setPlayerTeamId(String(tid));
+        setSubmitMsg(
+          "Equipo registrado correctamente. Ahora elegí la competencia y presioná “Inscribir equipo”."
+        );
       }
     } catch (e) {
       const msg =
@@ -572,13 +770,14 @@ export default function TorneoInscripcionPage() {
   const handlePlayerDelete = async (p, displayName) => {
     if (!puedeEliminarJugador) return;
     const pid = p.id ?? p.Id;
-    if (
-      !window.confirm(
-        `¿Eliminar a ${displayName}? No se puede recuperar. Si ya participó en partidos con goles o tarjetas, el sistema no permitirá borrarlo.`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Eliminar jugador",
+      message: `¿Eliminar a ${displayName}? No se puede recuperar. Si ya participó en partidos, goles, tarjetas, planillas o sanciones, el sistema no permitirá borrarlo.`,
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    if (!ok) return;
     setRosterMutateErr(null);
     setDeletingPlayerId(pid);
     try {
@@ -606,13 +805,14 @@ export default function TorneoInscripcionPage() {
     const pid = p.id ?? p.Id;
     const active = p.isActive ?? p.IsActive;
     const nextLabel = active ? "desactivar" : "reactivar";
-    if (
-      !window.confirm(
-        `¿${active ? "Desactivar" : "Reactivar"} a este jugador en el plantel?`
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: active ? "Desactivar jugador" : "Reactivar jugador",
+      message: `¿${active ? "Desactivar" : "Reactivar"} a este jugador en el plantel?`,
+      confirmText: active ? "Desactivar" : "Reactivar",
+      cancelText: "Cancelar",
+      variant: active ? "danger" : "default",
+    });
+    if (!ok) return;
     setRosterMutateErr(null);
     setTogglingPlayerId(pid);
     try {
@@ -633,6 +833,42 @@ export default function TorneoInscripcionPage() {
       setRosterMutateErr(msg);
     } finally {
       setTogglingPlayerId(null);
+    }
+  };
+
+  const handlePlayerEligibility = async (p) => {
+    if (!puedeValidarJugador) return;
+    const pid = p.id ?? p.Id;
+    const eligible = p.isEligible ?? p.IsEligible ?? true;
+    const nextEligible = !eligible;
+    const ok = await confirm({
+      title: nextEligible ? "Habilitar jugador" : "Inhabilitar jugador",
+      message: `¿${nextEligible ? "Habilitar" : "Inhabilitar"} a este jugador para jugar?`,
+      confirmText: nextEligible ? "Habilitar" : "Inhabilitar",
+      cancelText: "Cancelar",
+      variant: nextEligible ? "default" : "danger",
+    });
+    if (!ok) return;
+    setRosterMutateErr(null);
+    setEligibilityPlayerId(pid);
+    try {
+      await setPlayerEligibility(pid, nextEligible);
+      try {
+        const map = await buildRosterMap(teams);
+        setRosterByTeamId(map);
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        (typeof err?.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "No se pudo cambiar el estado de habilitación del jugador.";
+      setRosterMutateErr(msg);
+    } finally {
+      setEligibilityPlayerId(null);
     }
   };
 
@@ -818,7 +1054,142 @@ export default function TorneoInscripcionPage() {
                 <p className="text-sm text-red-600">{String(ctxError)}</p>
               )}
 
-              {!ctxLoading && ctx && resolvedOrganizacionId == null && (
+              {!ctxLoading && ctx && resolvedOrganizacionId == null && can(PERM_ADMIN) && (
+                <section className="rounded-2xl border border-slate-200 bg-white px-5 py-6 space-y-5 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                        Administración global
+                      </p>
+                      <h3 className="mt-1 text-lg font-bold text-slate-900">
+                        Equipos inscritos por competencia y escuela
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-600 max-w-2xl">
+                        Como administrador puedes ver todas las escuelas,
+                        revisar qué equipos están inscritos y quitar una
+                        inscripción equivocada si todavía no tiene fixture ni
+                        historial deportivo.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
+                      {competitions.length} competencia(s)
+                    </span>
+                  </div>
+
+                  {inscribeMsg && (
+                    <div className="flex items-start gap-2 text-emerald-800 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      <CheckCircle2 className="w-5 h-5 shrink-0" />
+                      <span>{inscribeMsg}</span>
+                    </div>
+                  )}
+                  {inscribeErr && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      {inscribeErr}
+                    </p>
+                  )}
+
+                  <div className="space-y-4">
+                    {adminCompetitionGroups.map((competition) => {
+                      const totalTeams = competition.schools.reduce(
+                        (sum, school) => sum + school.teams.length,
+                        0
+                      );
+                      return (
+                        <div
+                          key={String(competition.id)}
+                          className="rounded-xl border border-slate-100 bg-slate-50/70 overflow-hidden"
+                        >
+                          <div className="px-4 py-3 border-b border-slate-100 bg-slate-100/70 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-slate-900">
+                                {competition.label}
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Límite por escuela:{" "}
+                                <span className="font-semibold">
+                                  {competition.maxTeamsPerOrganization === 0
+                                    ? "sin límite"
+                                    : `${competition.maxTeamsPerOrganization} equipo(s)`}
+                                </span>
+                              </p>
+                            </div>
+                            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                              {totalTeams} equipo(s) inscrito(s)
+                            </span>
+                          </div>
+
+                          {competition.schools.length === 0 ? (
+                            <p className="px-4 py-4 text-sm text-slate-500">
+                              Aún no hay equipos inscritos en esta competencia.
+                            </p>
+                          ) : (
+                            <div className="divide-y divide-slate-100">
+                              {competition.schools.map((school) => (
+                                <div
+                                  key={school.key}
+                                  className="px-4 py-3 bg-white/80"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                    <p className="text-sm font-bold text-slate-800">
+                                      {school.school}
+                                    </p>
+                                    <span className="text-[11px] font-semibold text-slate-500">
+                                      {school.teams.length} equipo(s)
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {school.teams.map((team) => {
+                                      const key = `${competition.id}:${team.id}`;
+                                      return (
+                                        <div
+                                          key={String(team.id)}
+                                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs"
+                                        >
+                                          <span className="font-semibold text-slate-800">
+                                            {team.name}
+                                            {team.initials
+                                              ? ` (${team.initials})`
+                                              : ""}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleAdminDeleteInscription({
+                                                competitionId: competition.id,
+                                                teamId: team.id,
+                                                teamName: team.name,
+                                              })
+                                            }
+                                            disabled={
+                                              adminDeletingInscriptionKey === key
+                                            }
+                                            className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                                            title="Quitar inscripción"
+                                          >
+                                            {adminDeletingInscriptionKey ===
+                                            key ? (
+                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="w-3 h-3" />
+                                            )}
+                                            Quitar
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {!ctxLoading && ctx && resolvedOrganizacionId == null && !can(PERM_ADMIN) && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 text-sm">
                   <p className="font-bold">Sin escuela asignada</p>
                   <p className="mt-1">
@@ -829,8 +1200,47 @@ export default function TorneoInscripcionPage() {
               )}
 
               {!ctxLoading && ctx && resolvedOrganizacionId != null && (
-                <div className="space-y-8">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-5 py-4 text-sm text-slate-700">
+                <div className="flex flex-col gap-8">
+                  <div className="order-0 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                        Paso 1
+                      </p>
+                      <p className="mt-1 font-bold text-slate-900">
+                        Registrar equipo
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Guarda el equipo de tu escuela. Todavía no participa en
+                        ninguna competencia.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                        Paso 2
+                      </p>
+                      <p className="mt-1 font-bold text-slate-900">
+                        Inscribir equipo
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Elige la competencia. Recién aquí el equipo queda
+                        inscrito.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-violet-800">
+                        Paso 3
+                      </p>
+                      <p className="mt-1 font-bold text-slate-900">
+                        Completar jugadores
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Puedes agregarlos ahora o después mientras la lista siga
+                        abierta.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="order-1 rounded-2xl border border-slate-200 bg-slate-50/80 px-5 py-4 text-sm text-slate-700">
                     <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
                       Escuela
                     </p>
@@ -843,20 +1253,114 @@ export default function TorneoInscripcionPage() {
                     </p>
                   </div>
 
+                  <div className="order-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-5 py-4 text-sm text-slate-700">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                          Comprobante de inscripción
+                        </p>
+                        <h3 className="mt-1 text-base font-bold text-slate-900">
+                          {data?.name ?? data?.Name ?? "Torneo"}{" "}
+                          {data?.year ?? data?.Year
+                            ? `· ${data?.year ?? data?.Year}`
+                            : ""}
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Competencia:{" "}
+                          <span className="font-semibold text-slate-900">
+                            {selectedCompetition
+                              ? competitionOptionLabel(selectedCompetition)
+                              : "Selecciona una competencia"}
+                          </span>
+                        </p>
+                        <div className="mt-3">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                            Equipo(s) inscrito(s)
+                          </p>
+                          {myInscribedTeams.length > 0 ? (
+                            <div className="mt-2 space-y-2">
+                              {myInscribedTeams.map((team) => (
+                                <div
+                                  key={String(team.id)}
+                                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2"
+                                >
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-900">
+                                      {team.name}
+                                      {team.initials
+                                        ? ` (${team.initials})`
+                                        : ""}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500">
+                                      Inscrito en{" "}
+                                      {selectedCompetition
+                                        ? competitionOptionLabel(
+                                            selectedCompetition
+                                          )
+                                        : "esta competencia"}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDeleteInscription(team)
+                                    }
+                                    disabled={deletingInscription || inscribing}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                                  >
+                                    {deletingInscription ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-3 h-3" />
+                                    )}
+                                    Quitar
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-xs text-slate-500">
+                              Aún no hay comprobante porque no tienes equipos
+                              inscritos en esta competencia.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-right">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                          Control de cupos
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-900">
+                          {myInscriptionLimitText}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          0 en configuración significa sin límite.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {teams.length > 0 && (
                     <form
                       onSubmit={handleInscribeExistingTeam}
-                      className="rounded-2xl border border-amber-200 bg-amber-50/60 px-5 py-6 space-y-4"
+                      className="order-4 rounded-2xl border border-amber-200 bg-amber-50/60 px-5 py-6 space-y-4"
                     >
                       <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
                         <ClipboardList className="w-6 h-6 text-amber-800" />
-                        Inscribir un equipo en esta competencia
+                        Paso 2: Inscribir equipo en competencia
                       </h3>
                       <p className="text-xs text-slate-600 leading-relaxed">
-                        Si el equipo ya está creado, elegí la competencia y el
-                        equipo y registrá la inscripción sin volver a dar de alta
-                        un equipo nuevo.
+                        Elige un equipo ya registrado y la competencia donde va
+                        a participar. Este paso confirma la inscripción; crear
+                        el equipo por sí solo no lo inscribe.
                       </p>
+                      {selectedCompetitionLimitReached && (
+                        <p className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-900">
+                          Tu escuela ya llegó al límite de esta competencia (
+                          {myInscriptionLimitText}). Pide al administrador subir
+                          el límite o ponerlo en 0 para permitir más equipos.
+                        </p>
+                      )}
                       {inscribeMsg && (
                         <div className="flex items-start gap-2 text-emerald-800 text-sm bg-white border border-emerald-200 rounded-lg px-3 py-2">
                           <CheckCircle2 className="w-5 h-5 shrink-0" />
@@ -920,26 +1424,33 @@ export default function TorneoInscripcionPage() {
                         type="submit"
                         disabled={
                           inscribing ||
+                          deletingInscription ||
                           !(competitionId || presetCompetitionId) ||
-                          !existingInscribeTeamId
+                          !existingInscribeTeamId ||
+                          selectedCompetitionLimitReached ||
+                          selectedTeamAlreadyInscribed
                         }
                         className="w-full py-3 rounded-xl bg-amber-700 text-white font-bold text-sm hover:bg-amber-800 disabled:opacity-50"
                       >
                         {inscribing
                           ? "Inscribiendo…"
+                          : selectedTeamAlreadyInscribed
+                            ? "Equipo ya inscrito"
+                          : selectedCompetitionLimitReached
+                            ? "Límite de inscripción alcanzado"
                           : "Inscribir equipo en la competencia"}
                       </button>
                     </form>
                   )}
 
                   {submitMsg && (
-                    <div className="flex items-start gap-2 text-emerald-800 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+                    <div className="order-4 flex items-start gap-2 text-emerald-800 text-sm bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
                       <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
                       <span>{submitMsg}</span>
                     </div>
                   )}
                   {submitErr && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
+                    <p className="order-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
                       {submitErr}
                     </p>
                   )}
@@ -947,46 +1458,16 @@ export default function TorneoInscripcionPage() {
                   {teams.length === 0 && puedeCrearEquipoNuevo && (
                     <form
                       onSubmit={handleCreateTeam}
-                      className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/40 px-5 py-6 space-y-5"
+                      className="order-3 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/40 px-5 py-6 space-y-5"
                     >
                       <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
                         <Trophy className="w-6 h-6 text-emerald-700" />
-                        Registrar equipo e inscribir en la competencia
+                        Paso 1: Registrar equipo
                       </h3>
                       <p className="text-xs text-slate-600 leading-relaxed">
-                        Primero se guarda el equipo en el sistema; acto seguido
-                        se registra la inscripción en la competencia elegida (dos
-                        operaciones en el API, como en el backend). Solo ves
-                        equipos de tu organización.
+                        Aquí solo guardas el equipo de tu escuela. Después, en el
+                        paso 2, eliges la competencia donde participará.
                       </p>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                          Competencia
-                        </label>
-                        {presetCompetitionId && presetValid && presetCompetition ? (
-                          <div className="w-full px-3 py-2.5 rounded-lg border border-emerald-200 bg-white text-sm text-slate-800">
-                            {competitionOptionLabel(presetCompetition)}
-                          </div>
-                        ) : (
-                          <select
-                            required
-                            value={competitionId}
-                            onChange={(e) => setCompetitionId(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
-                          >
-                            <option value="">Seleccioná la competencia…</option>
-                            {competitions.map((c) => {
-                              const id = c.id ?? c.Id;
-                              return (
-                                <option key={String(id)} value={String(id)}>
-                                  {competitionOptionLabel(c)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        )}
-                      </div>
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
@@ -1052,14 +1533,14 @@ export default function TorneoInscripcionPage() {
                         className="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 disabled:opacity-50"
                       >
                         {creatingTeam
-                          ? "Guardando equipo e inscripción…"
-                          : "Crear equipo e inscribir en la competencia"}
+                          ? "Guardando equipo…"
+                          : "Guardar equipo"}
                       </button>
                     </form>
                   )}
 
                   {teams.length === 0 && !puedeCrearEquipoNuevo && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                    <div className="order-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
                       <p className="font-bold">Sin equipos asignados</p>
                       <p className="mt-1 text-amber-800/90">
                         Tu usuario no tiene equipos para gestionar. Pedí al
@@ -1072,46 +1553,17 @@ export default function TorneoInscripcionPage() {
                   {teams.length > 0 && puedeCrearEquipoNuevo && (
                     <form
                       onSubmit={handleCreateTeam}
-                      className="rounded-2xl border border-dashed border-sky-300 bg-sky-50/50 px-5 py-6 space-y-5"
+                      className="order-3 rounded-2xl border border-dashed border-sky-300 bg-sky-50/50 px-5 py-6 space-y-5"
                     >
                       <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
                         <Trophy className="w-6 h-6 text-sky-700" />
-                        Registrar otro equipo de tu escuela
+                        Paso 1: Registrar otro equipo
                       </h3>
                       <p className="text-xs text-slate-600 leading-relaxed">
                         Para <strong>otra disciplina</strong> (ej. básquet si ya
-                        tenés fútbol) creá un equipo con otro nombre y
-                        elegí la competencia. Siguen siendo solo equipos de tu
-                        organización.
+                        tenés fútbol) crea un equipo con otro nombre. Luego
+                        inscríbelo en el paso 2.
                       </p>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                          Competencia
-                        </label>
-                        {presetCompetitionId && presetValid && presetCompetition ? (
-                          <div className="w-full px-3 py-2.5 rounded-lg border border-sky-200 bg-white text-sm text-slate-800">
-                            {competitionOptionLabel(presetCompetition)}
-                          </div>
-                        ) : (
-                          <select
-                            required
-                            value={competitionId}
-                            onChange={(e) => setCompetitionId(e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
-                          >
-                            <option value="">Seleccioná la competencia…</option>
-                            {competitions.map((c) => {
-                              const id = c.id ?? c.Id;
-                              return (
-                                <option key={String(id)} value={String(id)}>
-                                  {competitionOptionLabel(c)}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        )}
-                      </div>
 
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
@@ -1172,7 +1624,7 @@ export default function TorneoInscripcionPage() {
                       >
                         {creatingTeam
                           ? "Guardando…"
-                          : "Crear otro equipo e inscribir"}
+                          : "Guardar equipo"}
                       </button>
                     </form>
                   )}
@@ -1180,16 +1632,15 @@ export default function TorneoInscripcionPage() {
                   {teams.length > 0 && (
                     <form
                       onSubmit={handleAddPlayer}
-                      className="rounded-2xl border border-violet-200 bg-violet-50/40 px-5 py-6 space-y-4"
+                      className="order-5 rounded-2xl border border-violet-200 bg-violet-50/40 px-5 py-6 space-y-4"
                     >
                       <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
                         <Users className="w-6 h-6 text-violet-700" />
-                        Registrar jugadores
+                        Paso 3: Registrar jugadores
                       </h3>
                       <p className="text-xs text-slate-600">
-                        Elegí el equipo y completá los datos. El código de
-                        estudiante debe ser único en el sistema (se envía al
-                        campo de identificación del servidor).
+                        Puedes hacerlo ahora o después. El código de estudiante
+                        debe ser único en equipos que compartan competencia.
                       </p>
 
                       {playerMsg && (
@@ -1335,7 +1786,7 @@ export default function TorneoInscripcionPage() {
                   )}
 
                   {teams.length > 0 && (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-6 space-y-4 shadow-sm">
+                    <div className="order-6 rounded-2xl border border-slate-200 bg-white px-5 py-6 space-y-4 shadow-sm">
                       <div className="flex items-start gap-3">
                         <ClipboardList className="w-6 h-6 text-slate-600 shrink-0 mt-0.5" />
                         <div>
@@ -1420,6 +1871,8 @@ export default function TorneoInscripcionPage() {
                                     const pos = p.position ?? p.Position;
                                     const isPlActive =
                                       p.isActive ?? p.IsActive ?? true;
+                                    const isEligible =
+                                      p.isEligible ?? p.IsEligible ?? true;
                                     return (
                                       <li
                                         key={String(pid)}
@@ -1440,6 +1893,17 @@ export default function TorneoInscripcionPage() {
                                                 Inactivo
                                               </span>
                                             ) : null}
+                                            <span
+                                              className={`ml-2 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                                                isEligible
+                                                  ? "text-emerald-800 bg-emerald-100 border-emerald-200"
+                                                  : "text-rose-800 bg-rose-100 border-rose-200"
+                                              }`}
+                                            >
+                                              {isEligible
+                                                ? "Habilitado"
+                                                : "No habilitado"}
+                                            </span>
                                           </span>
                                           <span className="text-xs text-slate-600">
                                             Cód. estudiante:{" "}
@@ -1461,6 +1925,7 @@ export default function TorneoInscripcionPage() {
                                               !!playerEdit ||
                                               !!deletingPlayerId ||
                                               !!togglingPlayerId ||
+                                              !!eligibilityPlayerId ||
                                               editSaving
                                             }
                                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-50"
@@ -1477,6 +1942,7 @@ export default function TorneoInscripcionPage() {
                                               !!playerEdit ||
                                               !!deletingPlayerId ||
                                               togglingPlayerId === pid ||
+                                              !!eligibilityPlayerId ||
                                               editSaving
                                             }
                                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-white border border-amber-200 hover:bg-amber-50 disabled:opacity-50"
@@ -1492,6 +1958,37 @@ export default function TorneoInscripcionPage() {
                                               ? "Desactivar"
                                               : "Reactivar"}
                                           </button>
+                                          {puedeValidarJugador ? (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handlePlayerEligibility(p)
+                                              }
+                                              disabled={
+                                                !!playerEdit ||
+                                                !!deletingPlayerId ||
+                                                !!togglingPlayerId ||
+                                                eligibilityPlayerId === pid ||
+                                                editSaving
+                                              }
+                                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border disabled:opacity-50 ${
+                                                isEligible
+                                                  ? "text-rose-800 border-rose-200 hover:bg-rose-50"
+                                                  : "text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+                                              }`}
+                                            >
+                                              {eligibilityPlayerId === pid ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                              ) : isEligible ? (
+                                                <ShieldX className="w-3.5 h-3.5" />
+                                              ) : (
+                                                <ShieldCheck className="w-3.5 h-3.5" />
+                                              )}
+                                              {isEligible
+                                                ? "Inhabilitar"
+                                                : "Habilitar"}
+                                            </button>
+                                          ) : null}
                                           {puedeEliminarJugador ? (
                                             <button
                                               type="button"
@@ -1502,10 +1999,11 @@ export default function TorneoInscripcionPage() {
                                                 !!playerEdit ||
                                                 deletingPlayerId === pid ||
                                                 !!togglingPlayerId ||
+                                                !!eligibilityPlayerId ||
                                                 editSaving
                                               }
                                               className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-800 bg-white border border-rose-200 hover:bg-rose-50 disabled:opacity-50"
-                                              title="Solo administración de torneos puede eliminar del sistema"
+                                              title="Solo se elimina si no tiene historial; si ya participó, se debe desactivar"
                                             >
                                               {deletingPlayerId === pid ? (
                                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

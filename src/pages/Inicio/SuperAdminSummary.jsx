@@ -4,12 +4,12 @@ import {
   Users,
   School,
   Trophy,
+  Medal,
   Activity,
   ArrowRight,
   Clock,
   Newspaper,
   ExternalLink,
-  Calendar,
   Globe,
   Settings,
 } from "lucide-react";
@@ -173,8 +173,9 @@ export default function SuperAdminSummary() {
       ? "md:grid-cols-3"
       : "md:grid-cols-1";
 
-  const torneosGridCols =
-    torneosActivos.length >= 3
+  const torneosGridCols = showRecent
+    ? "grid-cols-1"
+    : torneosActivos.length >= 3
       ? "md:grid-cols-3"
       : torneosActivos.length === 2
         ? "md:grid-cols-2"
@@ -297,11 +298,11 @@ export default function SuperAdminSummary() {
                     <ExternalLink className="w-3.5 h-3.5" />
                   </Link>
                   <Link
-                    to="/calendario"
+                    to="/campeones"
                     className="text-xs font-bold text-slate-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1"
                   >
-                    <Calendar className="w-3.5 h-3.5" />
-                    Ver calendario
+                    <Medal className="w-3.5 h-3.5" />
+                    Ver campeones
                   </Link>
                 </div>
               </div>
@@ -332,31 +333,33 @@ export default function SuperAdminSummary() {
                     return (
                       <div
                         key={id}
-                        className="rounded-2xl border border-slate-100 bg-white hover:border-slate-200/90 hover:shadow-sm transition-all flex flex-wrap sm:flex-nowrap gap-3 p-3.5 items-center"
+                        className="rounded-2xl border border-slate-100 bg-white hover:border-slate-200/90 hover:shadow-sm transition-all p-4"
                       >
-                        <div className="shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-slate-50 border border-amber-100/80 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                          <Trophy
-                            className="w-5 h-5 text-amber-600"
-                            strokeWidth={2}
-                          />
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-slate-50 border border-amber-100/80 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                            <Trophy
+                              className="w-5 h-5 text-amber-600"
+                              strokeWidth={2}
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1 flex flex-col gap-1">
+                            <span
+                              className={`inline-flex max-w-full w-fit whitespace-normal text-[10px] font-bold px-2 py-0.5 rounded-full border ${tournamentPublicBadgeClass(st)}`}
+                            >
+                              {tournamentPublicLabel(st)}
+                            </span>
+                            <p className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 break-words">
+                              {name}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+                              Temporada {year}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1 flex flex-col gap-1">
-                          <span
-                            className={`inline-flex w-fit text-[10px] font-bold px-2 py-0.5 rounded-full border ${tournamentPublicBadgeClass(st)}`}
-                          >
-                            {tournamentPublicLabel(st)}
-                          </span>
-                          <p className="font-bold text-slate-900 text-sm leading-snug line-clamp-2">
-                            {name}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
-                            Temporada {year}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end sm:justify-start pl-14 sm:pl-0 border-t border-slate-100 pt-3 sm:border-0 sm:pt-0">
+                        <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
                           <Link
                             to={publicUrl}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60 hover:text-emerald-800 transition-colors"
+                            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60 hover:text-emerald-800 transition-colors"
                             title="Ver cómo se ve en la web pública"
                           >
                             <Globe className="w-3.5 h-3.5 shrink-0" />
@@ -364,7 +367,7 @@ export default function SuperAdminSummary() {
                           </Link>
                           <Link
                             to={panelUrl}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-amber-300 hover:bg-amber-50/50 hover:text-amber-900 transition-colors"
+                            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:border-amber-300 hover:bg-amber-50/50 hover:text-amber-900 transition-colors"
                             title="Gestionar y editar en el panel"
                           >
                             <Settings className="w-3.5 h-3.5 shrink-0" />

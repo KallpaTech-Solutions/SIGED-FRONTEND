@@ -59,6 +59,19 @@ export async function patchMatchFinish(matchId) {
 }
 
 /**
+ * Eliminatoria (ida simple) empatada: goles de la tanda de penales (mesa).
+ * @param {string} matchId
+ * @param {{ localPenaltyScore: number, visitorPenaltyScore: number }} body
+ */
+export async function patchMatchPenaltyScore(matchId, body) {
+  const { data } = await api.patch(
+    `/Matches/${matchId}/penalty-score`,
+    body
+  );
+  return data;
+}
+
+/**
  * Programar fecha/hora y sede del partido (requiere tourn.match.control).
  * El cuerpo debe ser un string ISO 8601 (JSON string), según el API.
  * @param {string} matchId
@@ -92,6 +105,14 @@ export const MATCH_EVENT_TYPE = {
   Offside: 10,
   Tiro: 11,
   TiroAPuerta: 12,
+  SegundaAmarilla: 13,
+  RojaPorDobleAmarilla: 14,
+  PenaltyMiss: 15,
+};
+
+export const MATCH_LINEUP_ROLE = {
+  Starter: 1,
+  Substitute: 2,
 };
 
 /**
@@ -130,5 +151,62 @@ export async function patchMatchEvent(eventId, body) {
  */
 export async function deleteMatchEvent(eventId) {
   const { data } = await api.delete(`/Matches/events/${eventId}`);
+  return data;
+}
+
+export async function fetchMatchLineups(matchId) {
+  const { data } = await api.get(`/Matches/${matchId}/lineups`);
+  return data;
+}
+
+export async function putMatchLineup(matchId, teamId, body) {
+  const { data } = await api.put(`/Matches/${matchId}/lineups/${teamId}`, body);
+  return data;
+}
+
+export async function openMatchLineupTemporaryWindow(matchId, teamId, minutes = 5) {
+  const { data } = await api.post(
+    `/Matches/${matchId}/lineups/${teamId}/temporary-open`,
+    { minutes }
+  );
+  return data;
+}
+
+export async function openMatchLineupTemporaryWindowForAll(matchId, minutes = 5) {
+  const { data } = await api.post(
+    `/Matches/${matchId}/lineups/temporary-open-all`,
+    { minutes }
+  );
+  return data;
+}
+
+export async function closeMatchLineupTemporaryWindowForAll(matchId) {
+  const { data } = await api.post(
+    `/Matches/${matchId}/lineups/temporary-close-all`
+  );
+  return data;
+}
+
+export async function fetchMatchReport(matchId) {
+  const { data } = await api.get(`/Matches/${matchId}/report`);
+  return data;
+}
+
+export async function downloadMatchReportCsv(matchId) {
+  const { data } = await api.get(`/Matches/${matchId}/report.csv`, {
+    responseType: "blob",
+  });
+  return data;
+}
+
+/**
+ * Acta en PDF (mismo permiso que CSV / JSON de reporte).
+ * @param {string} matchId
+ * @returns {Promise<Blob>}
+ */
+export async function downloadMatchReportPdf(matchId) {
+  const { data } = await api.get(`/Matches/${matchId}/report.pdf`, {
+    responseType: "blob",
+  });
   return data;
 }

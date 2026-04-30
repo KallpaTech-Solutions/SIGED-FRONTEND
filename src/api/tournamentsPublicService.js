@@ -4,11 +4,22 @@ import api from "./axiosConfig";
  * - GET /api/Tournaments — torneos activos
  * - GET /api/Matches/public/landing — en vivo + partidos del día (UTC), vitrina principal
  * - GET /api/Competitions/:id — detalle competencia
+ * - GET /api/Competitions/champions?year=&disciplineId= — campeones por año (y disciplina opcional)
  */
 
 export async function fetchPublicTournaments() {
   const { data } = await api.get("/Tournaments");
   return Array.isArray(data) ? data : [];
+}
+
+/** Catálogo de disciplinas (GET /api/Disciplines, anónimo). */
+export async function fetchPublicDisciplines() {
+  try {
+    const { data } = await api.get("/Disciplines", { params: { onlyActive: true } });
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Partidos para la página /torneos (en vivo o hoy). Opcional ?date=YYYY-MM-DD */
@@ -43,6 +54,18 @@ export async function fetchPublicLandingMatchesByCompetition(competitionId, date
 export async function fetchCompetitionById(id) {
   const { data } = await api.get(`/Competitions/${id}`);
   return data;
+}
+
+/**
+ * @param {{ year: number, disciplineId?: string }} params
+ * @returns {Promise<Array<{ competitionId: string, tournamentName: string, tournamentYear: number, disciplineName: string, categoryName: string, championTeamName: string, championTeamLogoUrl?: string|null, championDecidedAtUtc?: string|null }>>}
+ */
+export async function fetchCompetitionChampionsByYear(params) {
+  const { year, disciplineId } = params;
+  const q = new URLSearchParams({ year: String(year) });
+  if (disciplineId) q.set("disciplineId", String(disciplineId));
+  const { data } = await api.get(`/Competitions/champions?${q.toString()}`);
+  return Array.isArray(data) ? data : [];
 }
 
 /** Fases, partidos por estado, tablas RR y llaves (GET /api/Competitions/{id}/public-dashboard) */

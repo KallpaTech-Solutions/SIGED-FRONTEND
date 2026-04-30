@@ -206,10 +206,21 @@ function StandingsTable({ standings }) {
 function KnockoutRounds({ bracket, venueByMatchId, phaseMatches }) {
   const rounds = bracket?.rounds ?? bracket?.Rounds ?? [];
   if (!rounds.length) return null;
+  const isPlaceholderName = (name) => {
+    const v = String(name ?? "").trim().toLowerCase();
+    return v === "" || v === "por definir";
+  };
   return (
     <div className="space-y-6">
       {rounds.map((round, ri) => {
-        const matches = round.matches ?? round.Matches ?? [];
+        const matchesRaw = round.matches ?? round.Matches ?? [];
+        const matches = matchesRaw.filter((bm) => {
+          const local = bm.localName ?? bm.LocalName ?? "";
+          const visitor = bm.visitorName ?? bm.VisitorName ?? "";
+          // Oculta cruces fantasma (slot vacío vs slot vacío) en llaves con byes.
+          return !(isPlaceholderName(local) && isPlaceholderName(visitor));
+        });
+        if (!matches.length) return null;
         const title = round.title ?? round.Title ?? `Ronda ${ri + 1}`;
         return (
           <div key={ri}>
