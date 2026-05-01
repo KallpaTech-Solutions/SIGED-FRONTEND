@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Loader2,
@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
   ImagePlus,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useConfirm } from "../../context/ConfirmContext";
@@ -29,6 +30,8 @@ import {
   fetchTeamGestores,
   postTeamGestor,
   deleteTeamGestor,
+  fetchTeamDetail,
+  updateTeamMultipart,
 } from "../../api/tournamentInscriptionService";
 import {
   isInscripcionesAbiertas,
@@ -131,6 +134,29 @@ export default function DelegadoGestionEquiposPage() {
   const [orgUsersForGestores, setOrgUsersForGestores] = useState([]);
   const [coDelegadoPick, setCoDelegadoPick] = useState({});
   const [gestorBusy, setGestorBusy] = useState(null);
+
+  const [editingTeamId, setEditingTeamId] = useState(null);
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamInitials, setEditTeamInitials] = useState("");
+  const [editTeamRep, setEditTeamRep] = useState("");
+  const [editTeamLogo, setEditTeamLogo] = useState(null);
+  const [editTeamLoading, setEditTeamLoading] = useState(false);
+  const [editTeamSaving, setEditTeamSaving] = useState(false);
+  const [editTeamErr, setEditTeamErr] = useState(null);
+  const teamEditFetchSeq = useRef(0);
+
+  /** Modal catálogo global (solo admin OTI): renombrar equipo de cualquier escuela. */
+  const [catalogEditOpen, setCatalogEditOpen] = useState(false);
+  const [catalogEditTeamId, setCatalogEditTeamId] = useState(null);
+  const [catalogEditOrgId, setCatalogEditOrgId] = useState(null);
+  const [catalogEditName, setCatalogEditName] = useState("");
+  const [catalogEditInitials, setCatalogEditInitials] = useState("");
+  const [catalogEditRep, setCatalogEditRep] = useState("");
+  const [catalogEditLogo, setCatalogEditLogo] = useState(null);
+  const [catalogEditLoading, setCatalogEditLoading] = useState(false);
+  const [catalogEditSaving, setCatalogEditSaving] = useState(false);
+  const [catalogEditErr, setCatalogEditErr] = useState(null);
+  const catalogEditFetchSeq = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -331,6 +357,136 @@ export default function DelegadoGestionEquiposPage() {
     }
   };
 
+  const closeTeamEditPanel = () => {
+    setEditingTeamId(null);
+    setEditTeamLogo(null);
+    setEditTeamErr(null);
+    setEditTeamLoading(false);
+  };
+
+  const openTeamEditPanel = async (tid) => {
+    setEditTeamErr(null);
+    setEditTeamLogo(null);
+    setEditTeamLoading(true);
+    setEditingTeamId(tid);
+    const seq = ++teamEditFetchSeq.current;
+    try {
+      const d = await fetchTeamDetail(tid);
+      if (seq !== teamEditFetchSeq.current) return;
+      setEditTeamName(String(d.name ?? d.Name ?? "").trim());
+      setEditTeamInitials(String(d.initials ?? d.Initials ?? "").trim());
+      setEditTeamRep(
+        String(d.representativeName ?? d.RepresentativeName ?? "").trim()
+      );
+    } catch (err) {
+      if (seq !== teamEditFetchSeq.current) return;
+      setEditTeamErr(
+        err?.response?.data?.message || "No se pudo cargar el equipo."
+      );
+      setEditingTeamId(null);
+    } finally {
+      if (seq === teamEditFetchSeq.current) setEditTeamLoading(false);
+    }
+  };
+
+  const closeCatalogTeamEditModal = () => {
+    setCatalogEditOpen(false);
+    setCatalogEditTeamId(null);
+    setCatalogEditOrgId(null);
+    setCatalogEditLogo(null);
+    setCatalogEditErr(null);
+    setCatalogEditLoading(false);
+    setCatalogEditSaving(false);
+  };
+
+  const openCatalogTeamEditModal = async (team) => {
+    const tid = String(team.id ?? team.Id);
+    const oid = team.organizacionId ?? team.OrganizacionId;
+    setCatalogEditErr(null);
+    setCatalogEditLogo(null);
+    setCatalogEditOpen(true);
+    setCatalogEditTeamId(tid);
+    setCatalogEditOrgId(oid != null && oid !== "" ? Number(oid) : null);
+    setCatalogEditLoading(true);
+    const seq = ++catalogEditFetchSeq.current;
+    try {
+      const d = await fetchTeamDetail(tid, { includeInactive: true });
+      if (seq !== catalogEditFetchSeq.current) return;
+      setCatalogEditName(String(d.name ?? d.Name ?? "").trim());
+      setCatalogEditInitials(String(d.initials ?? d.Initials ?? "").trim());
+      setCatalogEditRep(
+        String(d.representativeName ?? d.RepresentativeName ?? "").trim()
+      );
+    } catch (err) {
+      if (seq !== catalogEditFetchSeq.current) return;
+      setCatalogEditErr(
+        err?.response?.data?.message || "No se pudo cargar el equipo."
+      );
+    } finally {
+      if (seq === catalogEditFetchSeq.current) setCatalogEditLoading(false);
+    }
+  };
+
+  const handleCatalogTeamSave = async (e) => {
+    e.preventDefault();
+    if (!catalogEditTeamId || !catalogEditName.trim()) return;
+    setCatalogEditSaving(true);
+    setCatalogEditErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("Name", catalogEditName.trim());
+      fd.append("Initials", (catalogEditInitials || "").trim());
+      if (catalogEditRep.trim())
+        fd.append("RepresentativeName", catalogEditRep.trim());
+      if (catalogEditOrgId != null && !Number.isNaN(catalogEditOrgId))
+        fd.append("OrganizacionId", String(catalogEditOrgId));
+      if (catalogEditLogo) fd.append("LogoFile", catalogEditLogo);
+      await updateTeamMultipart(catalogEditTeamId, fd);
+      closeCatalogTeamEditModal();
+      await loadTeamsCatalog();
+    } catch (err) {
+      setCatalogEditErr(
+        err?.response?.data?.message ||
+          (typeof err?.response?.data === "string"
+            ? err.response.data
+            : null) ||
+          "No se pudo guardar el equipo."
+      );
+    } finally {
+      setCatalogEditSaving(false);
+    }
+  };
+
+  const handleSaveTeamEdit = async (e) => {
+    e.preventDefault();
+    if (!editingTeamId || !editTeamName.trim()) return;
+    const orgId = summary?.organizacionId ?? summary?.OrganizacionId;
+    setEditTeamSaving(true);
+    setEditTeamErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("Name", editTeamName.trim());
+      fd.append("Initials", (editTeamInitials || "").trim());
+      if (editTeamRep.trim())
+        fd.append("RepresentativeName", editTeamRep.trim());
+      if (orgId != null && orgId !== "")
+        fd.append("OrganizacionId", String(orgId));
+      if (editTeamLogo) fd.append("LogoFile", editTeamLogo);
+      await updateTeamMultipart(editingTeamId, fd);
+      closeTeamEditPanel();
+      await load();
+    } catch (err) {
+      setEditTeamErr(
+        err?.response?.data?.message ||
+          (typeof err?.response?.data === "string"
+            ? err.response.data
+            : null) ||
+          "No se pudo guardar el equipo."
+      );
+    } finally {
+      setEditTeamSaving(false);
+    }
+  };
 
   const handleToggle = async (p) => {
     const pid = p.id ?? p.Id;
@@ -658,7 +814,9 @@ export default function DelegadoGestionEquiposPage() {
                   <th className="px-3 py-2 text-left">Creado por</th>
                   <th className="px-3 py-2 text-left">Inscripciones</th>
                   <th className="px-3 py-2 text-left">Plantel</th>
-                  <th className="px-4 py-2 text-right w-56">Acciones</th>
+                  <th className="px-4 py-2 text-right min-w-[17rem]">
+                    Acciones
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -725,7 +883,18 @@ export default function DelegadoGestionEquiposPage() {
                         {activePlayerCount}/{playerCount} activos
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2 min-w-52">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {puedeVerTodasLasEscuelas ? (
+                            <button
+                              type="button"
+                              title="Editar nombre, siglas y representante"
+                              aria-label="Editar nombre del equipo"
+                              onClick={() => void openCatalogTeamEditModal(team)}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          ) : null}
                           <Link
                             to={
                               torneosInscripcion[0]
@@ -738,10 +907,19 @@ export default function DelegadoGestionEquiposPage() {
                             onClick={(e) => {
                               if (!torneosInscripcion[0]) e.preventDefault();
                             }}
-                            className="inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+                            className="inline-flex h-9 min-w-[9.5rem] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
                           >
-                            <Pencil className="w-3.5 h-3.5 shrink-0" />
-                            Gestionar
+                            {puedeVerTodasLasEscuelas ? (
+                              <>
+                                <ClipboardList className="w-3.5 h-3.5 shrink-0" />
+                                Inscripción y plantel
+                              </>
+                            ) : (
+                              <>
+                                <Pencil className="w-3.5 h-3.5 shrink-0" />
+                                Gestionar
+                              </>
+                            )}
                           </Link>
                           {canDelete && (
                             <button
@@ -811,20 +989,111 @@ export default function DelegadoGestionEquiposPage() {
                 key={tid}
                 className="rounded-xl border border-slate-100 bg-slate-50/60 overflow-hidden"
               >
-                <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-100">
-                  <p className="font-bold text-slate-900">
-                    {tname}
-                    {initials ? (
-                      <span className="text-slate-500 font-normal text-sm ml-2">
-                        ({initials})
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {players.length}{" "}
-                    {players.length === 1 ? "jugador" : "jugadores"}
-                  </p>
+                <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-100 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {tname}
+                      {initials ? (
+                        <span className="text-slate-500 font-normal text-sm ml-2">
+                          ({initials})
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {players.length}{" "}
+                      {players.length === 1 ? "jugador" : "jugadores"}
+                    </p>
+                  </div>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        editingTeamId === tid
+                          ? closeTeamEditPanel()
+                          : void openTeamEditPanel(tid)
+                      }
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      {editingTeamId === tid ? "Cerrar" : "Editar equipo"}
+                    </button>
+                  ) : null}
                 </div>
+
+                {canManage && editingTeamId === tid ? (
+                  <div className="px-4 py-3 border-b border-emerald-100 bg-emerald-50/50 space-y-3">
+                    {editTeamLoading ? (
+                      <p className="text-xs text-slate-600 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Cargando…
+                      </p>
+                    ) : (
+                      <form onSubmit={handleSaveTeamEdit} className="space-y-2">
+                        {editTeamErr ? (
+                          <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1">
+                            {editTeamErr}
+                          </p>
+                        ) : null}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                            Nombre del equipo
+                          </label>
+                          <input
+                            required
+                            value={editTeamName}
+                            onChange={(e) => setEditTeamName(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                          />
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Siglas
+                            </label>
+                            <input
+                              maxLength={5}
+                              value={editTeamInitials}
+                              onChange={(e) =>
+                                setEditTeamInitials(e.target.value)
+                              }
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                              Representante
+                            </label>
+                            <input
+                              value={editTeamRep}
+                              onChange={(e) => setEditTeamRep(e.target.value)}
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">
+                            Nuevo logo (opcional)
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) =>
+                              setEditTeamLogo(e.target.files?.[0] ?? null)
+                            }
+                            className="w-full text-xs"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={editTeamSaving}
+                          className="w-full py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 disabled:opacity-50"
+                        >
+                          {editTeamSaving ? "Guardando…" : "Guardar cambios"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ) : null}
 
                 {!canManage ? (
                   <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 text-[11px] text-amber-900">
@@ -1524,6 +1793,137 @@ export default function DelegadoGestionEquiposPage() {
                   {editSaving ? "Guardando…" : "Guardar cambios"}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {catalogEditOpen && puedeVerTodasLasEscuelas && (
+        <div
+          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/45"
+          role="presentation"
+          onClick={() => {
+            if (!catalogEditSaving) closeCatalogTeamEditModal();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalog-team-edit-title"
+            className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <h2
+                id="catalog-team-edit-title"
+                className="text-lg font-bold text-slate-900 flex items-center gap-2"
+              >
+                <Pencil className="w-5 h-5 text-emerald-700" />
+                Editar equipo
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!catalogEditSaving) closeCatalogTeamEditModal();
+                }}
+                disabled={catalogEditSaving}
+                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={handleCatalogTeamSave}
+              className="px-5 py-4 space-y-4"
+            >
+              {catalogEditErr && (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {catalogEditErr}
+                </p>
+              )}
+              {catalogEditLoading ? (
+                <p className="text-sm text-slate-600 flex items-center gap-2 py-4">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Cargando datos del equipo…
+                </p>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                      Nombre del equipo
+                    </label>
+                    <input
+                      required
+                      value={catalogEditName}
+                      onChange={(e) => setCatalogEditName(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                        Siglas (opcional)
+                      </label>
+                      <input
+                        maxLength={5}
+                        value={catalogEditInitials}
+                        onChange={(e) =>
+                          setCatalogEditInitials(e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                        Representante (opcional)
+                      </label>
+                      <input
+                        value={catalogEditRep}
+                        onChange={(e) => setCatalogEditRep(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                      <ImagePlus className="w-4 h-4" />
+                      Nuevo logo (opcional)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
+                        setCatalogEditLogo(e.target.files?.[0] ?? null)
+                      }
+                      className="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-700 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!catalogEditSaving) closeCatalogTeamEditModal();
+                      }}
+                      disabled={catalogEditSaving}
+                      className="flex-1 min-w-[120px] py-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold text-sm hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        catalogEditSaving ||
+                        catalogEditLoading ||
+                        !catalogEditName.trim()
+                      }
+                      className="flex-1 min-w-[120px] py-2.5 rounded-xl bg-emerald-700 text-white font-bold text-sm hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                      {catalogEditSaving ? "Guardando…" : "Guardar cambios"}
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
           </div>
         </div>

@@ -24,6 +24,7 @@ import {
   postInscription,
   deleteInscription,
   createTeamMultipart,
+  updateTeamMultipart,
   createPlayerMultipart,
   updatePlayerMultipart,
   deletePlayer,
@@ -146,6 +147,27 @@ export default function TorneoInscripcionPage() {
   const [newRep, setNewRep] = useState("");
   const [logoFile, setLogoFile] = useState(null);
   const [creatingTeam, setCreatingTeam] = useState(false);
+
+  const [teamUpdateOpen, setTeamUpdateOpen] = useState(false);
+  const [teamUpdateLoading, setTeamUpdateLoading] = useState(false);
+  const [teamUpdateSaving, setTeamUpdateSaving] = useState(false);
+  const [teamUpdateName, setTeamUpdateName] = useState("");
+  const [teamUpdateInitials, setTeamUpdateInitials] = useState("");
+  const [teamUpdateRep, setTeamUpdateRep] = useState("");
+  const [teamUpdateLogo, setTeamUpdateLogo] = useState(null);
+  const [teamUpdateErr, setTeamUpdateErr] = useState(null);
+  const [teamUpdateMsg, setTeamUpdateMsg] = useState(null);
+
+  /** Edición de nombre del equipo desde la tarjeta "Equipos y planteles" (evita anidar formularios). */
+  const [rosterTeamEditId, setRosterTeamEditId] = useState(null);
+  const [rosterEditName, setRosterEditName] = useState("");
+  const [rosterEditInitials, setRosterEditInitials] = useState("");
+  const [rosterEditRep, setRosterEditRep] = useState("");
+  const [rosterEditLogo, setRosterEditLogo] = useState(null);
+  const [rosterEditLoading, setRosterEditLoading] = useState(false);
+  const [rosterEditSaving, setRosterEditSaving] = useState(false);
+  const [rosterEditErr, setRosterEditErr] = useState(null);
+  const [rosterEditMsg, setRosterEditMsg] = useState(null);
 
   const [submitMsg, setSubmitMsg] = useState(null);
   const [submitErr, setSubmitErr] = useState(null);
@@ -657,6 +679,152 @@ export default function TorneoInscripcionPage() {
       setSubmitErr(msg);
     } finally {
       setCreatingTeam(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!teamUpdateOpen || !existingInscribeTeamId) return;
+    let cancelled = false;
+    (async () => {
+      setTeamUpdateLoading(true);
+      setTeamUpdateErr(null);
+      try {
+        const d = await fetchTeamDetail(existingInscribeTeamId);
+        if (cancelled) return;
+        setTeamUpdateName(String(d.name ?? d.Name ?? "").trim());
+        setTeamUpdateInitials(String(d.initials ?? d.Initials ?? "").trim());
+        setTeamUpdateRep(
+          String(d.representativeName ?? d.RepresentativeName ?? "").trim()
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setTeamUpdateErr(
+            e?.response?.data?.message || "No se pudo cargar el equipo."
+          );
+        }
+      } finally {
+        if (!cancelled) setTeamUpdateLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teamUpdateOpen, existingInscribeTeamId]);
+
+  useEffect(() => {
+    if (!rosterTeamEditId) return;
+    let cancelled = false;
+    (async () => {
+      setRosterEditLoading(true);
+      setRosterEditErr(null);
+      try {
+        const d = await fetchTeamDetail(rosterTeamEditId, {
+          includeInactive: true,
+        });
+        if (cancelled) return;
+        setRosterEditName(String(d.name ?? d.Name ?? "").trim());
+        setRosterEditInitials(String(d.initials ?? d.Initials ?? "").trim());
+        setRosterEditRep(
+          String(d.representativeName ?? d.RepresentativeName ?? "").trim()
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setRosterEditErr(
+            e?.response?.data?.message || "No se pudo cargar el equipo."
+          );
+        }
+      } finally {
+        if (!cancelled) setRosterEditLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rosterTeamEditId]);
+
+  const handleUpdateTeam = async (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!teamUpdateName.trim() || !existingInscribeTeamId) return;
+    setTeamUpdateSaving(true);
+    setTeamUpdateErr(null);
+    setTeamUpdateMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("Name", teamUpdateName.trim());
+      fd.append("Initials", (teamUpdateInitials || "").trim());
+      if (teamUpdateRep.trim())
+        fd.append("RepresentativeName", teamUpdateRep.trim());
+      if (resolvedOrganizacionId != null)
+        fd.append("OrganizacionId", String(resolvedOrganizacionId));
+      if (teamUpdateLogo) fd.append("LogoFile", teamUpdateLogo);
+      await updateTeamMultipart(existingInscribeTeamId, fd);
+      const c = await fetchTeamsMeContext();
+      setCtx(c);
+      setTeamUpdateLogo(null);
+      setTeamUpdateMsg("Datos del equipo guardados.");
+      try {
+        const list = c?.teams ?? c?.Teams ?? [];
+        const map = await buildRosterMap(list);
+        setRosterByTeamId(map);
+      } catch {
+        /* */
+      }
+    } catch (err) {
+      setTeamUpdateErr(
+        err?.response?.data?.message ||
+          (typeof err?.response?.data === "string"
+            ? err.response.data
+            : null) ||
+          "No se pudo actualizar el equipo."
+      );
+    } finally {
+      setTeamUpdateSaving(false);
+    }
+  };
+
+  const closeRosterTeamEdit = () => {
+    setRosterTeamEditId(null);
+    setRosterEditLogo(null);
+    setRosterEditErr(null);
+    setRosterEditMsg(null);
+  };
+
+  const handleRosterTeamSave = async () => {
+    if (!rosterTeamEditId || !rosterEditName.trim()) return;
+    setRosterEditSaving(true);
+    setRosterEditErr(null);
+    setRosterEditMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("Name", rosterEditName.trim());
+      fd.append("Initials", (rosterEditInitials || "").trim());
+      if (rosterEditRep.trim())
+        fd.append("RepresentativeName", rosterEditRep.trim());
+      if (resolvedOrganizacionId != null)
+        fd.append("OrganizacionId", String(resolvedOrganizacionId));
+      if (rosterEditLogo) fd.append("LogoFile", rosterEditLogo);
+      await updateTeamMultipart(rosterTeamEditId, fd);
+      const c = await fetchTeamsMeContext();
+      setCtx(c);
+      setRosterEditLogo(null);
+      setRosterEditMsg("Equipo actualizado.");
+      try {
+        const list = c?.teams ?? c?.Teams ?? [];
+        const map = await buildRosterMap(list);
+        setRosterByTeamId(map);
+      } catch {
+        /* */
+      }
+    } catch (err) {
+      setRosterEditErr(
+        err?.response?.data?.message ||
+          (typeof err?.response?.data === "string"
+            ? err.response.data
+            : null) ||
+          "No se pudo actualizar el equipo."
+      );
+    } finally {
+      setRosterEditSaving(false);
     }
   };
 
@@ -1420,6 +1588,118 @@ export default function TorneoInscripcionPage() {
                           })}
                         </select>
                       </div>
+
+                      {puedeCrearEquipoNuevo && existingInscribeTeamId && (
+                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeamUpdateOpen((o) => {
+                                if (o) setTeamUpdateLogo(null);
+                                return !o;
+                              });
+                              setTeamUpdateErr(null);
+                              setTeamUpdateMsg(null);
+                            }}
+                            className="text-xs font-bold text-emerald-800 hover:underline flex items-center gap-1"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            {teamUpdateOpen
+                              ? "Cerrar edición del equipo"
+                              : "Editar nombre y datos del equipo elegido"}
+                          </button>
+                          {teamUpdateOpen && (
+                            <div className="space-y-3 pt-1 border-t border-slate-100">
+                              {teamUpdateLoading ? (
+                                <p className="text-xs text-slate-500 flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Cargando datos del equipo…
+                                </p>
+                              ) : (
+                                <>
+                                  {teamUpdateErr && (
+                                    <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                                      {teamUpdateErr}
+                                    </p>
+                                  )}
+                                  {teamUpdateMsg && (
+                                    <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5">
+                                      {teamUpdateMsg}
+                                    </p>
+                                  )}
+                                  <div>
+                                    <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                                      Nombre del equipo
+                                    </label>
+                                    <input
+                                      required
+                                      value={teamUpdateName}
+                                      onChange={(e) =>
+                                        setTeamUpdateName(e.target.value)
+                                      }
+                                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                    />
+                                  </div>
+                                  <div className="grid sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                                        Siglas (opcional)
+                                      </label>
+                                      <input
+                                        maxLength={5}
+                                        value={teamUpdateInitials}
+                                        onChange={(e) =>
+                                          setTeamUpdateInitials(e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                                        Representante (opcional)
+                                      </label>
+                                      <input
+                                        value={teamUpdateRep}
+                                        onChange={(e) =>
+                                          setTeamUpdateRep(e.target.value)
+                                        }
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                                      <ImagePlus className="w-4 h-4" />
+                                      Nuevo logo (opcional)
+                                    </label>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) =>
+                                        setTeamUpdateLogo(
+                                          e.target.files?.[0] ?? null
+                                        )
+                                      }
+                                      className="w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-slate-700 file:px-2 file:py-1 file:text-white"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    disabled={teamUpdateSaving}
+                                    onClick={() => void handleUpdateTeam()}
+                                    className="w-full py-2 rounded-lg bg-emerald-700 text-white text-sm font-bold hover:bg-emerald-800 disabled:opacity-50"
+                                  >
+                                    {teamUpdateSaving
+                                      ? "Guardando…"
+                                      : "Guardar cambios del equipo"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <button
                         type="submit"
                         disabled={
@@ -1840,7 +2120,7 @@ export default function TorneoInscripcionPage() {
                               key={tid}
                               className="rounded-xl border border-slate-100 bg-slate-50/80 overflow-hidden"
                             >
-                              <div className="px-4 py-3 border-b border-slate-100 bg-slate-100/60 flex flex-wrap items-baseline justify-between gap-2">
+                              <div className="px-4 py-3 border-b border-slate-100 bg-slate-100/60 flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-semibold text-slate-900">
                                   {teamName}
                                   {initials ? (
@@ -1849,13 +2129,139 @@ export default function TorneoInscripcionPage() {
                                     </span>
                                   ) : null}
                                 </p>
-                                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
-                                  {players.length}{" "}
-                                  {players.length === 1
-                                    ? "jugador"
-                                    : "jugadores"}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {puedeCrearEquipoNuevo ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (rosterTeamEditId === tid) {
+                                          closeRosterTeamEdit();
+                                        } else {
+                                          setRosterEditMsg(null);
+                                          setRosterEditErr(null);
+                                          setRosterEditLogo(null);
+                                          setRosterTeamEditId(tid);
+                                        }
+                                      }}
+                                      disabled={
+                                        !!playerEdit ||
+                                        !!deletingPlayerId ||
+                                        !!togglingPlayerId ||
+                                        !!eligibilityPlayerId ||
+                                        editSaving
+                                      }
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-white text-[11px] font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                      {rosterTeamEditId === tid
+                                        ? "Cerrar edición"
+                                        : "Editar nombre del equipo"}
+                                    </button>
+                                  ) : null}
+                                  <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
+                                    {players.length}{" "}
+                                    {players.length === 1
+                                      ? "jugador"
+                                      : "jugadores"}
+                                  </span>
+                                </div>
                               </div>
+                              {puedeCrearEquipoNuevo &&
+                                rosterTeamEditId === tid && (
+                                  <div className="px-4 py-3 border-b border-emerald-100 bg-emerald-50/40 space-y-3">
+                                    {rosterEditLoading ? (
+                                      <p className="text-xs text-slate-600 flex items-center gap-2">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Cargando datos del equipo…
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        {rosterEditErr && (
+                                          <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                                            {rosterEditErr}
+                                          </p>
+                                        )}
+                                        {rosterEditMsg && (
+                                          <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1.5">
+                                            {rosterEditMsg}
+                                          </p>
+                                        )}
+                                        <div>
+                                          <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">
+                                            Nombre del equipo
+                                          </label>
+                                          <input
+                                            value={rosterEditName}
+                                            onChange={(e) =>
+                                              setRosterEditName(e.target.value)
+                                            }
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                          />
+                                        </div>
+                                        <div className="grid sm:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">
+                                              Siglas (opcional)
+                                            </label>
+                                            <input
+                                              maxLength={5}
+                                              value={rosterEditInitials}
+                                              onChange={(e) =>
+                                                setRosterEditInitials(
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">
+                                              Representante (opcional)
+                                            </label>
+                                            <input
+                                              value={rosterEditRep}
+                                              onChange={(e) =>
+                                                setRosterEditRep(e.target.value)
+                                              }
+                                              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-500 uppercase mb-1">
+                                            <ImagePlus className="w-4 h-4" />
+                                            Nuevo logo (opcional)
+                                          </label>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) =>
+                                              setRosterEditLogo(
+                                                e.target.files?.[0] ?? null
+                                              )
+                                            }
+                                            className="w-full text-xs text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-emerald-700 file:px-2 file:py-1 file:text-white"
+                                          />
+                                        </div>
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            rosterEditSaving ||
+                                            !rosterEditName.trim()
+                                          }
+                                          onClick={() =>
+                                            void handleRosterTeamSave()
+                                          }
+                                          className="w-full py-2 rounded-lg bg-emerald-700 text-white text-sm font-bold hover:bg-emerald-800 disabled:opacity-50"
+                                        >
+                                          {rosterEditSaving
+                                            ? "Guardando…"
+                                            : "Guardar cambios del equipo"}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               {players.length === 0 ? (
                                 <p className="px-4 py-4 text-sm text-slate-500">
                                   Aún no hay jugadores registrados en este

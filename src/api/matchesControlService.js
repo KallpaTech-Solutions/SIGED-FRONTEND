@@ -192,11 +192,46 @@ export async function fetchMatchReport(matchId) {
   return data;
 }
 
+/** Mensaje legible cuando axios devuelve error con body en Blob (p. ej. ProblemDetails). */
+async function messageFromDownloadError(err) {
+  const d = err?.response?.data;
+  if (d instanceof Blob) {
+    try {
+      const text = await d.text();
+      try {
+        const j = JSON.parse(text);
+        return (
+          j.message ||
+          j.title ||
+          j.detail ||
+          (typeof j.errors === "object"
+            ? Object.values(j.errors).flat().join(" ")
+            : null) ||
+          text
+        );
+      } catch {
+        return text?.trim() || err?.message || "Error al descargar";
+      }
+    } catch {
+      return err?.message || "Error al descargar";
+    }
+  }
+  if (typeof d === "string" && d.trim()) return d;
+  return d?.message || err?.message || "Error al descargar";
+}
+
 export async function downloadMatchReportCsv(matchId) {
-  const { data } = await api.get(`/Matches/${matchId}/report.csv`, {
-    responseType: "blob",
-  });
-  return data;
+  try {
+    const { data } = await api.get(`/Matches/${matchId}/report.csv`, {
+      responseType: "blob",
+    });
+    return data;
+  } catch (e) {
+    const msg = await messageFromDownloadError(e);
+    throw Object.assign(new Error(msg), {
+      response: { data: { message: msg } },
+    });
+  }
 }
 
 /**
@@ -205,8 +240,24 @@ export async function downloadMatchReportCsv(matchId) {
  * @returns {Promise<Blob>}
  */
 export async function downloadMatchReportPdf(matchId) {
-  const { data } = await api.get(`/Matches/${matchId}/report.pdf`, {
-    responseType: "blob",
-  });
-  return data;
+  try {
+    const { data } = await api.get(`/Matches/${matchId}/report.pdf`, {
+      responseType: "blob",
+    });
+    if (data instanceof Blob) {
+      const ct = (data.type || "").toLowerCase();
+      if (ct.includes("json") || ct.includes("problem")) {
+        const msg = await messageFromDownloadError({
+          response: { data },
+        });
+        throw new Error(msg);
+      }
+    }
+    return data;
+  } catch (e) {
+    const msg = e?.message && !e?.response ? e.message : await messageFromDownloadError(e);
+    throw Object.assign(new Error(msg), {
+      response: { data: { message: msg } },
+    });
+  }
 }

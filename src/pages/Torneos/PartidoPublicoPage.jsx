@@ -1161,7 +1161,8 @@ export default function PartidoPublicoPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       toast(
-        err?.response?.data?.message ||
+        err?.message ||
+          err?.response?.data?.message ||
           "No se pudo descargar el acta.",
         "error"
       );
@@ -1185,7 +1186,8 @@ export default function PartidoPublicoPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       toast(
-        err?.response?.data?.message ||
+        err?.message ||
+          err?.response?.data?.message ||
           "No se pudo descargar el PDF del acta.",
         "error"
       );

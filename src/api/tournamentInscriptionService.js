@@ -110,6 +110,25 @@ export async function createTeamMultipart(formData) {
   return data;
 }
 
+/**
+ * Actualizar equipo (PUT /api/Teams/{id}, multipart). Mismos campos que crear; LogoFile opcional.
+ * @param {string} teamId
+ * @param {FormData} formData
+ */
+export async function updateTeamMultipart(teamId, formData) {
+  const { data } = await api.put(`/Teams/${teamId}`, formData, {
+    transformRequest: [
+      (payload, headers) => {
+        if (payload instanceof FormData) {
+          delete headers["Content-Type"];
+        }
+        return payload;
+      },
+    ],
+  });
+  return data;
+}
+
 /** Usuarios activos de tu escuela (delegado principal elige co-delegados). GET /Teams/me/org-users */
 export async function fetchOrgUsersForTeamGestores() {
   const { data } = await api.get("/Teams/me/org-users");
